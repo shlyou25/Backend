@@ -13,11 +13,10 @@ app.use(morgan('dev'));
 // db connection
 mongoose.connect(process.env.ConnectionString, {
   dbName: 'AccessAnanlyser',
-  useNewUrlParser: true,
-  useUnifiedTopology: true
 })
 .then(() => console.log('Connected to Database'))
 .catch(err => console.log(err));
+
 
 mongoose.Promise = global.Promise;
 
