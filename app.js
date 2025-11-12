@@ -2,6 +2,8 @@ const express = require('express');
 const morgan = require('morgan');
 const bodyParser = require('body-parser');
 const mongoose=require('mongoose');
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const app = express();
 
 require('dotenv').config();
@@ -9,6 +11,7 @@ require('dotenv').config();
 // routes
 const authRoutes=require('./api/Routes/auth')
 app.use(morgan('dev'));
+app.use(cookieParser());
 
 // db connection
 mongoose.connect(process.env.ConnectionString, {
@@ -18,17 +21,10 @@ mongoose.connect(process.env.ConnectionString, {
 .catch(err => console.log(err));
 mongoose.Promise = global.Promise;
 
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000'); // ✅ specific origin only
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true'); // ✅ required for cookies
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
+app.use(cors({
+  origin: "http://localhost:3000",  // your frontend URL
+  credentials: true,                 // allow cookies
+}));
 
 // parsing the body
 app.use(bodyParser.urlencoded({ extended: true }))

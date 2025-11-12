@@ -1,24 +1,35 @@
-const jwt = require("jsonwebtoken")
+// ✅ middlewares/authenticate.js
+const jwt = require("jsonwebtoken");
 const userModel = require('../../models/user');
 
-exports.authenticate = async (req, res, next) => {
+exports.authenticate = async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer '))
-      return res.status(401).json({ message: 'No token provided' });
+    const token = req.cookies.token;
+    
+    if (!token) {
+      return res.status(401).json({ status: false, message: "No token provided" });
+    }
 
-    const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    const user = await userModel.findById(decoded.userId).select("-password");
+    
+    if (!user) {
+      return res.status(404).json({ status: false, message: "User not found" });
+    }
 
-    const user = await userModel.findById(decoded.userId).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.activeToken !== token) {
+      return res.status(401).json({ status: false, message: "Token revoked. Please login again." });
+    }
 
-    req.user = user;
-    next(); // or, if it’s your /authenticate route, just send response:
-    // res.status(200).json({ valid: true, user });
+    // ✅ Success case: respond directly
+    return res.status(200).json({
+      status: true,
+      message: "Authenticated successfully",
+      user,
+    });
+
   } catch (err) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    console.error(err);
+    return res.status(401).json({ status: false, message: "Invalid or expired token" });
   }
 };
-
-
