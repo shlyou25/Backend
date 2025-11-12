@@ -5,7 +5,7 @@ const middlewaresauth = require('../middlewares/authenticate')
 
 router.post('/register',authController.register);
 router.post('/login',authController.login);
-router.get('/authenticate',middlewaresauth.authenticate)
+router.get('/authenticate',middlewaresauth.authenticate);
 
 
 module.exports=router;
