@@ -11,13 +11,14 @@ const authRoutes=require('./api/Routes/auth')
 app.use(morgan('dev'));
 
 // db connection
+
+console.log(process.env.JWT_SECRET_KEY);
+
 mongoose.connect(process.env.ConnectionString, {
   dbName: 'AccessAnanlyser',
 })
 .then(() => console.log('Connected to Database'))
 .catch(err => console.log(err));
-
-
 mongoose.Promise = global.Promise;
 
 // CORS

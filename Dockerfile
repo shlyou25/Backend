@@ -1,20 +1,23 @@
-# Use official Node.js LTS version as base image
-FROM node:18
+# 1. Use official Node.js image (lightweight Alpine version)
+FROM node:18-alpine
 
-# Create app directory inside container
+# 2. Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json (if exists)
+# 3. Copy package.json and package-lock.json (for caching)
 COPY package*.json ./
 
-# Install app dependencies
-RUN npm install
+# 4. Install dependencies
+RUN npm install --production
 
-# Copy app source code
+# 5. Copy the rest of your backend code
 COPY . .
 
-# Expose the port your app runs on (change if needed)
-EXPOSE 3000
+# 6. Expose your app port (adjust if your app uses another)
+EXPOSE 8080
 
-# Command to run the app
-CMD ["npm", "start"]
+# 7. Set environment to production
+ENV NODE_ENV=production
+
+# 8. Command to start the server
+CMD ["node", "server.js"]

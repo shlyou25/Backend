@@ -6,7 +6,8 @@ const userScheme=require('../../../models/user')
 
 exports.register= async(req,res,next)=>{
     try { 
-        const {name,email,password}=req.body;
+        const {name,email,password,cnfpassword}=req.body;
+        if(password!=cnfpassword) return res.status(400).json({status:false,message:"Password MisMatch"}); 
         const passwordRegex=/^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
         if(!name || !email || !password || !validator.isEmail(email) || !passwordRegex.test(password)) return res.status(400).json({status:false,message:"Invalid Credentials"});
         const user=await userScheme.findOne({email});
