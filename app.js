@@ -22,7 +22,7 @@ mongoose.connect(process.env.ConnectionString, {
 mongoose.Promise = global.Promise;
 
 app.use(cors({
-  origin: "https://backend-3zzt.onrender.com",  // your frontend URL
+  origin: "https://domzdomain.netlify.app",  // your frontend URL
   credentials: true,                 // allow cookies
 }));
 
