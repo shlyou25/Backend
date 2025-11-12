@@ -21,13 +21,17 @@ mongoose.connect(process.env.ConnectionString, {
 .catch(err => console.log(err));
 mongoose.Promise = global.Promise;
 
-// CORS
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow all origins (replace with specific domains in production)
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE'); // Specify allowed methods
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization'); // Specify allowed headers
-    next();
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000'); // ✅ specific origin only
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true'); // ✅ required for cookies
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
 });
+
 
 // parsing the body
 app.use(bodyParser.urlencoded({ extended: true }))
