@@ -43,7 +43,7 @@ app.use('/api/user', userRoutes);
 
 // if no paths matched
 app.use((req, res, next) => {
-    const error = new Error('No matching paths')
+    const error = new Error('No matching paths');
     error.status = 404;
     next(error);
 })
