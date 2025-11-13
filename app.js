@@ -26,8 +26,8 @@ mongoose.connect(process.env.ConnectionString, {
 mongoose.Promise = global.Promise;
 
 app.use(cors({
-    //   origin: "https://domzdomain.netlify.app",  // your frontend URL
-    origin: "http://localhost:3000",
+      origin: "https://domzdomain.netlify.app",  // your frontend URL
+    // origin: "http://localhost:3000",
     credentials: true,                 // allow cookies
 }));
 
