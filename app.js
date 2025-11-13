@@ -1,7 +1,7 @@
 const express = require('express');
 const morgan = require('morgan');
 const bodyParser = require('body-parser');
-const mongoose=require('mongoose');
+const mongoose = require('mongoose');
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const app = express();
@@ -9,21 +9,25 @@ const app = express();
 require('dotenv').config();
 
 // routes
-const authRoutes=require('./api/Routes/auth')
+const authRoutes = require('./api/Routes/auth')
+const userRoutes = require('./api/Routes/users')
+
+
+
 app.use(morgan('dev'));
 app.use(cookieParser());
 
 // db connection
 mongoose.connect(process.env.ConnectionString, {
-  dbName: 'AccessAnanlyser',
+    dbName: 'AccessAnanlyser',
 })
-.then(() => console.log('Connected to Database'))
-.catch(err => console.log(err));
+    .then(() => console.log('Connected to Database'))
+    .catch(err => console.log(err));
 mongoose.Promise = global.Promise;
 
 app.use(cors({
-  origin: "https://domzdomain.netlify.app",  // your frontend URL
-  credentials: true,                 // allow cookies
+    origin: "https://domzdomain.netlify.app",  // your frontend URL
+    credentials: true,                 // allow cookies
 }));
 
 // parsing the body
@@ -32,7 +36,8 @@ app.use(bodyParser.json());
 
 
 // setting routes
-app.use('/api/auth',authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 
 //Error Hadling
 

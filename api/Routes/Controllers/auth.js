@@ -62,7 +62,6 @@ exports.login = async (req, res, next) => {
 
     user.activeToken = token;
     await user.save();
-
     // HttpOnly cookie
     res.cookie("token", token, {
       httpOnly: true,                            // prevents JS access
@@ -83,11 +82,27 @@ exports.login = async (req, res, next) => {
   }
 };
 
-exports.logout = (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict"
-  });
-  res.status(200).json({ status: true, message: "Logged out successfully" });
+exports.logout = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(400).json({ status: false, message: "No token provided" });
+    }
+    const user = await userScheme.findOne({ activeToken: token });
+    if (user) {
+      user.activeToken = null;  
+      await user.save();
+    }
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict"
+    });
+
+    res.status(200).json({ status: true, message: "Logged out successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: false, message: "Logout failed" });
+  }
 };
+
