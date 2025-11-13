@@ -6,12 +6,12 @@ const userScheme=require('../../../models/user')
 
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, terms } = req.body;
+    const { email, password, terms } = req.body;
     if (terms !== true)
       return res.status(400).json({ status: false, message: "Please accept the terms & policy" });
 
     const passwordRegex = /^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!name || !email || !password || !validator.isEmail(email) || !passwordRegex.test(password))
+    if (!email || !password || !validator.isEmail(email) || !passwordRegex.test(password))
       return res.status(400).json({ status: false, message: "Invalid credentials" });
 
     const existingUser = await userScheme.findOne({ email });
@@ -22,7 +22,6 @@ exports.register = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     const newUser = new userScheme({
       _id: new mongoose.Types.ObjectId(),
-      name,
       email,
       password: hashedPassword
     });

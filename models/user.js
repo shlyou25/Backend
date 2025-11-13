@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const userSchema=mongoose.Schema({
     _id:mongoose.Types.ObjectId,
-    name:{type:String,require:true},
+    name:{type:String,require:false},
     email:{type:String,require:true},
     password:{type:String,require:true},
     activeToken:{type:String,require:false},
