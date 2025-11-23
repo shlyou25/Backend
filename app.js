@@ -9,7 +9,7 @@ const app = express();
 require('dotenv').config();
 
 // routes
-const authRoutes = require('./api/Routes/auth')
+const authRoutes = require('./api/Routes/auth');
 const userRoutes = require('./api/Routes/users');
 const planRoutes = require('./api/Routes/plan');
 
@@ -28,7 +28,7 @@ mongoose.Promise = global.Promise;
 
 app.use(cors({
       origin: "https://domzdomain.netlify.app",  // your frontend URL
-    // origin: "http://localhost:3000",
+
     credentials: true,                 // allow cookies
 }));
 
