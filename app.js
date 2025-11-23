@@ -10,7 +10,8 @@ require('dotenv').config();
 
 // routes
 const authRoutes = require('./api/Routes/auth')
-const userRoutes = require('./api/Routes/users')
+const userRoutes = require('./api/Routes/users');
+const planRoutes = require('./api/Routes/plan');
 
 
 
@@ -26,8 +27,8 @@ mongoose.connect(process.env.ConnectionString, {
 mongoose.Promise = global.Promise;
 
 app.use(cors({
-      origin: "https://domzdomain.netlify.app",  // your frontend URL
-    // origin: "http://localhost:3000",
+    //   origin: "https://domzdomain.netlify.app",  // your frontend URL
+    origin: "http://localhost:3000",
     credentials: true,                 // allow cookies
 }));
 
@@ -39,6 +40,7 @@ app.use(bodyParser.json());
 // setting routes
 app.use('/api/auth',authRoutes);
 app.use('/api/user',userRoutes);
+app.use('/api/plan',planRoutes)
 
 //Error Hadling
 

@@ -1,8 +1,4 @@
-const express = require('express');
-const router = express.Router();
 const userSchema = require('../../../models/user')
-const checkAuth = require('../../middlewares/authenticate')
-
 
 exports.getallUsers=async(req,res) => {
     try {
@@ -28,18 +24,19 @@ exports.getallUsers=async(req,res) => {
     }
 }
 
-// exports.authenticate = async (req, res) => {
-
 exports.getuserbyid=async(req,res) => {
    try {
-    const user = req.user; // Populated by authenticate middleware
-
+    const user = req.user._id; // Populated by authenticate middleware
+    const userInfo = await userSchema.findById(user).select('name email phoneNumber');
+    console.log(userInfo,"userInfouserInfouserInfo");
+    
     if (user) {
       res.status(200).json({
         status: true,
         user: {
-          name: user.name,
-          email: user.email
+          name: userInfo.name,
+          email: userInfo.email,
+          phoneNumber:userInfo.phoneNumber
         },
         message: 'User Information Fetched Successfully'
       });
@@ -56,3 +53,37 @@ exports.getuserbyid=async(req,res) => {
     });
   }
 }
+
+exports.updateuserinfo = async (req, res, next) => {
+  try {
+    const { name, email, phoneNumber } = req.body;
+    console.log({name, email, phoneNumber});
+    
+    const user = req.user;
+
+    const updatedUser = await userSchema.findOneAndUpdate(
+      { _id: user._id },
+      { $set: { name, email, phoneNumber } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found',
+      });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: 'User Information Successfully Updated',
+      // user: updatedUser,  // optional, include updated data in response
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: 'Error in updating user Information',
+    });
+  }
+};
