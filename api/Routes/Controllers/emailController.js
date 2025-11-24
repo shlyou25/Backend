@@ -1,57 +1,34 @@
-const nodemailer = require("nodemailer");
+// netlify/functions/sendEmail.js
+const { Resend } = require("resend");
 
-// Create transporter with Gmail App Password
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS   // MUST be APP PASSWORD
-  }
-});
-
-// Send email function
-async function sendContactEmail(userEmail, subject, message, name) {
-  try {
-    const info = await transporter.sendMail({
-      from: `${name} <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      replyTo: userEmail,
-      subject,
-      text: message,
-      html: `<p>${message}</p>`
-    });
-
-    return info.messageId;
-  } catch (error) {
-    console.error("Nodemailer Error:", error);
-    return null;
-  }
-}
-
-exports.sendEmail = async (req, res) => {
+exports.handler = async (req,res) => {
   try {
     const { name, email, subject, message } = req.body;
-    console.log({ name, email, subject, message, },'///////////////////');
-    console.log(process.env.EMAIL_USER,
-      process.env.EMAIL_PASS,'////////////////////////////////////////');
-
 
     if (!email || !subject || !message) {
-      return res.status(400).json({ status: 'error', message: 'Missing required fields' });
+      return res.status(400).json({ status: false, message: "Missing required fields" });
     }
 
-    const messageId = await sendContactEmail(email, subject, message, name);
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
-    if (!messageId) {
-      return res.status(500).json({ status: 'error', message: 'Failed to send email' });
-    }
-
-    res.status(200).json({ status: 'success', message: 'Email Successfully Sent', messageId });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ status: 'error', message: 'Failed to send email' });
+    const data = await resend.emails.send({
+      from: `${name} <onboarding@resend.dev>`,
+      to: process.env.EMAIL_USER, // your receiving email
+      reply_to: email,
+      subject,
+      html: `
+        <div style="font-family: Arial; padding: 12px;">
+          <h2>New Contact Message</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message}</p>
+        </div>
+      `,
+    });
+    return res.status(200).json({ status: false, message: "Email Successfully Sent" });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: "Failed to send email" });
   }
 };
