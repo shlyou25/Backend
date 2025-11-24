@@ -9,7 +9,7 @@ exports.handler = async (req,res) => {
       return res.status(400).json({ status: false, message: "Missing required fields" });
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    const resend = new Resend(process.env.RESEND_API_KEY)
 
     const data = await resend.emails.send({
       from: `${name} <onboarding@resend.dev>`,
