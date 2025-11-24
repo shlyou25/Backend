@@ -33,6 +33,10 @@ async function sendContactEmail(userEmail, subject, message, name) {
 exports.sendEmail = async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
+    console.log({ name, email, subject, message, },'///////////////////');
+    console.log(process.env.EMAIL_USER,
+      process.env.EMAIL_PASS,'////////////////////////////////////////');
+
 
     if (!email || !subject || !message) {
       return res.status(400).json({ status: 'error', message: 'Missing required fields' });
