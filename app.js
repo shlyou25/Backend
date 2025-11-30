@@ -13,6 +13,7 @@ const authRoutes = require('./api/Routes/auth');
 const userRoutes = require('./api/Routes/users');
 const planRoutes = require('./api/Routes/plan');
 const emailRoutes = require('./api/Routes/emailService');
+const domainRoutes = require('./api/Routes/domain');
 
 
 
@@ -43,7 +44,8 @@ app.use(bodyParser.json());
 app.use('/api/auth',authRoutes);
 app.use('/api/user',userRoutes);
 app.use('/api/plan',planRoutes);
-app.use('/api/email',emailRoutes)
+app.use('/api/email',emailRoutes);
+app.use('/api/domain',domainRoutes);
 
 //Error Hadling
 
