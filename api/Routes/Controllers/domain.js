@@ -37,6 +37,26 @@ exports.adddomain = async (req, res) => {
         if (!Array.isArray(domains) || domains.length === 0) {
             return res.status(400).json({ message: "Invalid domain format." });
         }
+
+        const seen = new Set();
+        const duplicatesInRequest = [];
+
+        domains.forEach(d => {
+            if (seen.has(d)) {
+                duplicatesInRequest.push(d);
+            }
+            seen.add(d);
+        });
+
+        if (duplicatesInRequest.length > 0) {
+            return res.status(400).json({
+                message: "Duplicate domains found in your request.",
+                status:false,
+                duplicates: [...new Set(duplicatesInRequest)]
+            });
+        }
+
+
         // 5. Check if user exceeds plan limit
         if (existingCount + domains.length > allowedDomains) {
             return res.status(400).json({
@@ -95,7 +115,7 @@ exports.getdomainbyid = async (req, res) => {
             status: true,
             count: domains.length,
             domains,
-            message:"Domain Successully Feteched"
+            message: "Domain Successully Feteched"
         });
 
     } catch (error) {
