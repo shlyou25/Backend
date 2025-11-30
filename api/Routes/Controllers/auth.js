@@ -38,7 +38,6 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password, terms } = req.body;
-    console.log(email, password, terms,"email, password, terms");
     
     if (terms !== true) {
       return res.status(400).json({ status: false, message: "Please accept the terms and policy" });
