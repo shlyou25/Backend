@@ -28,8 +28,6 @@ exports.getuserbyid=async(req,res) => {
    try {
     const user = req.user._id; // Populated by authenticate middleware
     const userInfo = await userSchema.findById(user).select('name email phoneNumber');
-    console.log(userInfo,"userInfouserInfouserInfo");
-    
     if (user) {
       res.status(200).json({
         status: true,
@@ -57,7 +55,7 @@ exports.getuserbyid=async(req,res) => {
 exports.updateuserinfo = async (req, res, next) => {
   try {
     const { name, email, phoneNumber } = req.body;
-    console.log({name, email, phoneNumber});
+
     
     const user = req.user;
 
