@@ -1,6 +1,7 @@
 const planSchema = require('../../../models/packages');
 const domainSchema = require('../../../models/domain');
 const { packages } = require('../../middlewares/PackagePlan')
+const { encryptData, decryptData } = require('../../middlewares/crypto')
 
 exports.adddomain = async (req, res) => {
     try {
@@ -51,13 +52,11 @@ exports.adddomain = async (req, res) => {
         if (duplicatesInRequest.length > 0) {
             return res.status(400).json({
                 message: "Duplicate domains found in your request.",
-                status:false,
+                status: false,
                 duplicates: [...new Set(duplicatesInRequest)]
             });
         }
 
-
-        // 5. Check if user exceeds plan limit
         if (existingCount + domains.length > allowedDomains) {
             return res.status(400).json({
                 message: `Your plan allows ${allowedDomains} domains. 
@@ -78,9 +77,8 @@ You are trying to add ${domains.length}, which exceeds your limit.`
             });
         }
 
-        // 7. Save new domains
         const docs = domains.map(domain => ({
-            domain,
+            domain: encryptData(domain),
             userId
         }));
 
@@ -105,12 +103,16 @@ exports.getdomainbyid = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized user" });
         }
         // Fetch all domains of this user
-        const domains = await domainSchema
+        const domainsEncrypted  = await domainSchema
             .find({ userId })
             .select("domain -_id")           // include these fields
             .sort({ createdAt: -1 });
 
-
+        // decrypt all
+        const domains = domainsEncrypted.map(d => ({
+            domain: decryptData(d.domain),  // 🔓 decrypted
+            createdAt: d.createdAt
+        }));
         res.status(200).json({
             status: true,
             count: domains.length,
