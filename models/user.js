@@ -2,12 +2,17 @@ const mongoose = require('mongoose');
 
 const userSchema=mongoose.Schema({
     _id:mongoose.Types.ObjectId,
-    name:{type:String,require:false},
-    email:{type:String,require:true},
-    password:{type:String,require:true},
-    phoneNumber:{type:String,require:false},
-    activeToken:{type:String,require:false},
-    isEmailVerified:{type:String,require:false},
+    name:{type:String,required:false},
+    email:{type:String,required:true},
+    password:{type:String,required:true},
+    phoneNumber:{type:String,required:false},
+    activeToken:{type:String,required:false},
+    isEmailVerified:{type:Boolean,required:false},
+    role: {
+        type: String,
+        enum: ["user", "admin"],
+        default: "user"
+    },
     // Reference to the Plan schema
    plans: [
         { type: mongoose.Schema.Types.ObjectId, ref: "Plan" }

@@ -9,7 +9,6 @@ exports.register = async (req, res, next) => {
     const { email, password, terms } = req.body;
     if (terms !== true)
       return res.status(400).json({ status: false, message: "Please accept the terms & policy" });
-
     const passwordRegex = /^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!email || !password || !validator.isEmail(email) || !passwordRegex.test(password))
       return res.status(400).json({ status: false, message: "Invalid credentials" });
@@ -33,7 +32,6 @@ exports.register = async (req, res, next) => {
     return res.status(500).json({ status: false, message: "Failed to register" });
   }
 };
-
 
 exports.login = async (req, res, next) => {
   try {

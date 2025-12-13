@@ -1,10 +1,12 @@
 const express=require('express');
 const router=express.Router();
 const userController=require('./Controllers/user');
-const checkAuth = require('../middlewares/authenticate')
+const {authenticate,isAdmin} = require('../middlewares/authenticate');
 
-router.get('/getallusers',checkAuth,userController.getallUsers);
-router.get('/getuserbyid',checkAuth,userController.getuserbyid);
-router.put('/updateuserinfo',checkAuth,userController.updateuserinfo)
+router.get('/getuserbyid',authenticate,userController.getuserbyid);
+router.put('/updateuserinfo',authenticate,userController.updateuserinfo);
+
+// Admin
+router.get("/allusers", authenticate, isAdmin, userController.getallUsers);
 
 module.exports=router;
