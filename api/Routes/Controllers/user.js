@@ -1,112 +1,94 @@
-const userSchema = require('../../../models/user')
+const User = require("../../../models/user");
 
 exports.getallUsers = async (req, res) => {
   try {
-    const user = await userSchema.find({}, 'name email').exec();
-    if (user) {
-      res.status(200).json({
-        status: true,
-        users: user,
-        message: 'Users Information Fetched Successfull'
-      })
-    }
-    else {
-      res.status(404).json({
-        status: false,
-        message: 'No User Found'
-      })
-    }
-  } catch (error) {
-    res.status(500).json({
-      status: false,
-      message: 'Error in getting User Info'
-    })
-  }
-}
+    const users = await User.find({}, "name email").lean();
 
-exports.getuserbyid = async (req, res) => {
-  try {
-    const user = req.user._id; // Populated by authenticate middleware
-    const userInfo = await userSchema.findById(user).select('name email phoneNumber');
-    if (user) {
-      res.status(200).json({
-        status: true,
-        user: {
-          name: userInfo.name,
-          email: userInfo.email,
-          phoneNumber: userInfo.phoneNumber
-        },
-        message: 'User Information Fetched Successfully'
-      });
-    } else {
-      res.status(404).json({
-        status: false,
-        message: 'No Information Found'
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      status: false,
-      message: 'Error in getting User Info'
-    });
-  }
-}
-
-exports.updateuserinfo = async (req, res, next) => {
-  try {
-    const { name, email, phoneNumber } = req.body;
-
-
-    const user = req.user;
-
-    const updatedUser = await userSchema.findOneAndUpdate(
-      { _id: user._id },
-      { $set: { name, email, phoneNumber } },
-      { new: true }
-    );
-
-    if (!updatedUser) {
+    if (!users.length) {
       return res.status(404).json({
         status: false,
-        message: 'User not found',
+        message: "No users found"
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       status: true,
-      message: 'User Information Successfully Updated',
-      // user: updatedUser,  // optional, include updated data in response
+      users,
+      message: "Users fetched successfully"
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({
       status: false,
-      message: 'Error in updating user Information',
+      message: "Error fetching users"
     });
   }
 };
 
 
-exports.createAdmin = async (req, res) => {
+exports.getuserbyid = async (req, res) => {
   try {
-    const adminExists = await Users.findOne({ role: "admin" });
+    const userId = req.user.id;
 
-    if (!adminExists) {
-      const hashed = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+    const userInfo = await User.findById(userId)
+      .select("name email phoneNumber")
+      .lean();
 
-      await Users.create({
-        _id: new mongoose.Types.ObjectId(),
-        email: process.env.ADMIN_EMAIL,
-        password: hashed,
-        role: "admin",
-        isEmailVerified: true
+    if (!userInfo) {
+      return res.status(404).json({
+        status: false,
+        message: "User not found"
       });
-
-      console.log("🔥 Default admin created");
-    } else {
-      console.log("Admin already exists.");
     }
-  } catch (err) {
-    console.error("Admin creation error:", err);
+
+    res.status(200).json({
+      status: true,
+      user: userInfo,
+      message: "User information fetched successfully"
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: "Error getting user info"
+    });
   }
-}
+};
+
+exports.updateuserinfo = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, phoneNumber } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          ...(name && { name }),
+          ...(phoneNumber && { phoneNumber })
+        }
+      },
+      { new: true }
+    ).select("name email phoneNumber");
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        status: false,
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "User updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: "Error updating user info"
+    });
+  }
+};
+

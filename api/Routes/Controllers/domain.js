@@ -5,7 +5,7 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 
 exports.adddomain = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = req.user.id;
         const activePlan = await planSchema.findOne({ userId }).sort({ createdAt: -1 });
         if (!activePlan || activePlan.endingDate < new Date()) {
             return res.status(400).json({ message: "Please get a plan before adding domains." });
@@ -91,7 +91,7 @@ You are trying to add ${domains.length}, which exceeds your limit.`
 
 exports.getdomainbyid = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = req.user.id;
 
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized user" });

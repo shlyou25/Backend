@@ -6,7 +6,7 @@ const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 
 exports.getplansbyuser = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     const userWithPlans = await userSchema
       .findById(userId)
@@ -38,27 +38,36 @@ exports.getplansbyuser = async (req, res) => {
 
 exports.addPlan = async (req, res) => {
   try {
-    const userId = req.user._id;
-
+    const userId = req.user.id;
     // Validate input
     const { error, value } = selectPlanSchema.validate(req.body);
-    if (error) return res.status(400).json({ message: error.details[0].message });
+    if (error) {
+      return res.status(400).json({
+        message: error.details[0].message
+      });
+    }
 
     const { title } = value;
 
     // Match selected plan
     const selectedPlan = packages.find(p => p.title === title);
     if (!selectedPlan) {
-      return res.status(400).json({ message: "Invalid plan selected." });
+      return res.status(400).json({
+        message: "Invalid plan selected"
+      });
     }
 
     // Check for active plan
-    const existing = await Plan.findOne({ userId }).sort({ createdAt: -1 });
+    const existing = await Plan.findOne({ userId })
+      .sort({ createdAt: -1 });
+
     if (existing && existing.endingDate > new Date()) {
-      return res.status(400).json({ message: "You already have an active plan." });
+      return res.status(400).json({
+        message: "You already have an active plan"
+      });
     }
 
-    // SERVER DATES
+    // Server-controlled dates
     const startDate = new Date();
     const endingDate = new Date();
     endingDate.setMonth(endingDate.getMonth() + 1);
@@ -66,24 +75,29 @@ exports.addPlan = async (req, res) => {
     // Create plan
     const newPlan = await Plan.create({
       userId,
-      ...selectedPlan,
+      title: selectedPlan.title,
+      price: selectedPlan.price,
+      per: selectedPlan.per,
+      feature: selectedPlan.feature,
       startDate,
       endingDate
     });
 
-    // ⭐ ADD THIS PART — LINK PLAN TO USER ⭐
+    // Link plan to user
     await userSchema.findByIdAndUpdate(
       userId,
       { $push: { plans: newPlan._id } }
     );
 
-    return res.status(201).json({
+    res.status(201).json({
       message: "Plan activated successfully",
       plan: newPlan
     });
 
   } catch (error) {
     console.error("Add plan error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      message: "Internal server error"
+    });
   }
 };

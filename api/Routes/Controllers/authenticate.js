@@ -1,33 +1,37 @@
 const jwt = require("jsonwebtoken");
-const userModel = require('../../../models/user');
+const User = require('../../../models/user');
 
 exports.authenticate = async (req, res) => {
   try {
-    const token = req.cookies.token;
-    
+    const token = req.cookies.token;   
     if (!token) {
-      return res.status(401).json({ status: false, message: "No token provided" });
+      return res.status(401).json({ authenticated: false });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    const user = await userModel.findById(decoded.userId).select("-password");
-    
+
+    const user = await User.findById(decoded.sub)
+      .select("name email role tokenVersion")
+      .lean();
+
     if (!user) {
-      return res.status(404).json({ status: false, message: "User not found" });
+      return res.status(401).json({ authenticated: false });
     }
 
-    if (user.activeToken !== token) {
-      return res.status(401).json({ status: false, message: "Token revoked. Please login again." });
+    // ✅ Now this works correctly
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({ authenticated: false });
     }
 
-    // ✅ Success case: respond directly
     return res.status(200).json({
-      status: true,
-      message: "Authenticated successfully",
-      user,
+      authenticated: true,
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
     });
-  } catch (err) {
-    console.error(err);
-    return res.status(401).json({ status: false, message: "Invalid or expired token" });
+  } catch (error) {
+    return res.status(401).json({ authenticated: false });
   }
 };

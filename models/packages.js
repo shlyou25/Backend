@@ -1,18 +1,59 @@
 const mongoose = require("mongoose");
 
-const planSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  price: { type: Number, required: true },
-  per: { type: String, required: true },       // Monthly / Yearly
-  feature: { type: Number, required: true },   // matches your packages array
-  startDate: { type: Date, required: true },
-  endingDate: { type: Date, required: true },
+const planSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      index: true
+    },
 
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    required: true, 
-    ref: "Users" 
-  }
-}, { timestamps: true });
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+
+    per: {
+      type: String,
+      enum: ["Month", "Year"],
+      required: true
+    },
+
+    feature: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+
+    startDate: {
+      type: Date,
+      required: true
+    },
+
+    endingDate: {
+      type: Date,
+      required: true,
+      index: true
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "expired", "cancelled"],
+      default: "active",
+      index: true
+    },
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",        // ✅ FIXED
+      required: true,
+      index: true
+    }
+  },
+  { timestamps: true }
+);
+
+planSchema.index({ endingDate: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("Plan", planSchema);

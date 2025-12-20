@@ -1,12 +1,12 @@
+require('dotenv').config();
+
 const express = require('express');
 const morgan = require('morgan');
-const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const app = express();
 
-require('dotenv').config();
+const app = express();
 
 // routes
 const authRoutes = require('./api/Routes/auth');
@@ -15,57 +15,53 @@ const planRoutes = require('./api/Routes/plan');
 const emailRoutes = require('./api/Routes/emailService');
 const domainRoutes = require('./api/Routes/domain');
 
-
-
+// middlewares
 app.use(morgan('dev'));
 app.use(cookieParser());
 
-// db connection
-mongoose.connect(process.env.ConnectionString, {
-    dbName: 'AccessAnanlyser',
-})
-    .then(() => console.log('Connected to Database'))
-    .catch(err => console.log(err));
-mongoose.Promise = global.Promise;
-
 app.use(cors({
-    //   origin: "https://domzdomain.netlify.app",  // your frontend URL
-      origin:"http://localhost:3000",
-
-    credentials: true,                 // allow cookies
+  origin: process.env.NODE_ENV === "production"
+    ? "https://domzdomain.netlify.app"
+    : "http://localhost:3000",
+  credentials: true
 }));
 
-// parsing the body
-app.use(bodyParser.urlencoded({ extended: true }))
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-
-// setting routes
-app.use('/api/auth',authRoutes);
-app.use('/api/user',userRoutes);
-app.use('/api/plan',planRoutes);
-app.use('/api/email',emailRoutes);
-app.use('/api/domain',domainRoutes);
-
-//Error Hadling
-
-// if no paths matched
-app.use((req, res, next) => {
-    const error = new Error('No matching paths')
-    error.status = 404;
-    next(error);
+// DB connection
+mongoose.connect(process.env.ConnectionString, {
+  dbName: 'AccessAnanlyser'
 })
+.then(async () => {
+  console.log('Connected to Database');
+  await require('./api/utils/createAdmin').createAdmin();
+})
+.catch(err => {
+  console.error("DB connection failed:", err);
+  process.exit(1);
+});
 
-// if methods not matched
+// routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/plan', planRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/domain', domainRoutes);
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    message: "Route not found"
+  });
+});
+
+// error handler
 app.use((error, req, res, next) => {
-    res.status(error.status || 500)[
-        res.json({
-            error: {
-                message: error.message,
-            }
-        })
-    ]
-})
+  console.error(error);
+  res.status(error.status || 500).json({
+    message: error.message || "Internal server error"
+  });
+});
 
 module.exports = app;
