@@ -3,7 +3,7 @@ const User = require('../../../models/user');
 
 exports.authenticate = async (req, res) => {
   try {
-    const token = req.cookies.token;   
+    const token = req.cookies.token;  
     if (!token) {
       return res.status(401).json({ authenticated: false });
     }
@@ -22,7 +22,6 @@ exports.authenticate = async (req, res) => {
     if (decoded.tokenVersion !== user.tokenVersion) {
       return res.status(401).json({ authenticated: false });
     }
-
     return res.status(200).json({
       authenticated: true,
       user: {

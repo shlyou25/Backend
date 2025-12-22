@@ -156,6 +156,7 @@ exports.login = async (req, res) => {
 };
 
 exports.logout = async (req, res) => {
+  console.log("Here");
   try {
     await User.findByIdAndUpdate(req.user.id, {
       $inc: { tokenVersion: 1 }
@@ -164,15 +165,19 @@ exports.logout = async (req, res) => {
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax"
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      path: "/"
     });
-
-    return res.status(200).json({ message: "Logged out successfully" });
+    return res.status(200).json({
+      message: "Logged out successfully"
+    });
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       console.error("Logout error:", error.message);
     }
-    return res.status(500).json({ message: "Logout failed" });
+    return res.status(500).json({
+      message: "Logout failed"
+    });
   }
 };
 

@@ -3,14 +3,12 @@ const User = require("../../../models/user");
 exports.getallUsers = async (req, res) => {
   try {
     const users = await User.find({}, "name email").lean();
-
     if (!users.length) {
       return res.status(404).json({
         status: false,
         message: "No users found"
       });
     }
-
     res.status(200).json({
       status: true,
       users,
@@ -24,7 +22,6 @@ exports.getallUsers = async (req, res) => {
     });
   }
 };
-
 
 exports.getuserbyid = async (req, res) => {
   try {
