@@ -7,7 +7,6 @@ const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 exports.getplansbyuser = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const userWithPlans = await userSchema
       .findById(userId)
       .populate({
@@ -19,7 +18,6 @@ exports.getplansbyuser = async (req, res) => {
     if (!userWithPlans) {
       return res.status(404).json({ status: false, message: 'User not found' });
     }
-
     res.status(200).json({
       status: true,
       plans: userWithPlans.plans,
@@ -34,8 +32,6 @@ exports.getplansbyuser = async (req, res) => {
     });
   }
 };
-
-
 exports.addPlan = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -46,9 +42,7 @@ exports.addPlan = async (req, res) => {
         message: error.details[0].message
       });
     }
-
     const { title } = value;
-
     // Match selected plan
     const selectedPlan = packages.find(p => p.title === title);
     if (!selectedPlan) {
@@ -56,7 +50,6 @@ exports.addPlan = async (req, res) => {
         message: "Invalid plan selected"
       });
     }
-
     // Check for active plan
     const existing = await Plan.findOne({ userId })
       .sort({ createdAt: -1 });
@@ -101,3 +94,25 @@ exports.addPlan = async (req, res) => {
     });
   }
 };
+
+exports.getAllPlans=async (req,res)=>{
+  try {
+    const plans=await Plan.find({role:'user'})
+    .populate("userId","email name")
+    .sort({createdAt:-1})
+    .lean();
+    return res.status(200).json({
+      success:true,
+      count:plans.length,
+      plans
+    })
+  } catch (error) {
+    if(process.env.NODE_ENV!='production'){
+      console.log("Error getting plans",error.message);
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch plans"
+    });
+  }
+}

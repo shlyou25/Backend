@@ -2,6 +2,7 @@ const planSchema = require('../../../models/packages');
 const domainSchema = require('../../../models/domain');
 const { packages } = require('../../middlewares/PackagePlan');
 const { encryptData, decryptData } = require('../../middlewares/crypto');
+const domain = require('../../../models/domain');
 
 exports.adddomain = async (req, res) => {
     try {
@@ -121,4 +122,42 @@ exports.getdomainbyid = async (req, res) => {
             message: "Error retrieving domains"
         });
     }
+};
+
+
+exports.getAllDomains = async (req, res) => {
+  try {
+    const domainsRaw = await domainSchema.find()
+      .populate({
+        path: "userId",
+        match: { role: "user" },        // ✅ filter here
+        select: "name email role"
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // ⚠️ Remove domains whose owner was filtered out
+    const domains = domainsRaw
+      .filter(d => d.userId)
+      .map(d => ({
+        domain: decryptData(d.domain),
+        createdAt: d.createdAt,
+        owner: {
+          name: d.userId.name,
+          email: d.userId.email
+        }
+      }));
+
+    return res.status(200).json({
+      success: true,
+      count: domains.length,
+      domains
+    });
+  } catch (error) {
+    console.error("Get domains error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch domains"
+    });
+  }
 };

@@ -14,6 +14,7 @@ const userRoutes = require('./api/Routes/users');
 const planRoutes = require('./api/Routes/plan');
 const emailRoutes = require('./api/Routes/emailService');
 const domainRoutes = require('./api/Routes/domain');
+const paymentRouter=require('./api/Routes/payment');
 
 // middlewares
 app.use(morgan('dev'));
@@ -48,6 +49,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/plan', planRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/domain', domainRoutes);
+app.use('/api/payment',paymentRouter);
+
 
 // 404 handler
 app.use((req, res) => {

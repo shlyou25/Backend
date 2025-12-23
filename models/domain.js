@@ -4,7 +4,7 @@ const domainSchema = new mongoose.Schema({
   domain: { type: String, required: true },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: "Users",
+    ref: "User",
     required: true 
   }
 }, { timestamps: true });

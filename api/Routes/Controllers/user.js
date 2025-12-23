@@ -2,7 +2,7 @@ const User = require("../../../models/user");
 
 exports.getallUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "name email").lean();
+    const users = await User.find({role:'user'}, "name email").lean();
     if (!users.length) {
       return res.status(404).json({
         status: false,
@@ -74,7 +74,6 @@ exports.updateuserinfo = async (req, res) => {
         message: "User not found"
       });
     }
-
     res.status(200).json({
       status: true,
       message: "User updated successfully",
