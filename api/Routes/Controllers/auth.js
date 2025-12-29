@@ -10,64 +10,129 @@ exports.register = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
 
+    // 1️⃣ Validate input
     if (!terms) {
-      return res.status(400).json({ message: "Please accept terms & policy" });
+      return res.status(400).json({
+        code: "TERMS_REQUIRED",
+        message: "Please accept terms & policy"
+      });
     }
 
     if (!email || !password || !validator.isEmail(email)) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(400).json({
+        code: "INVALID_INPUT",
+        message: "Invalid email or password"
+      });
     }
 
     const passwordRegex =
       /^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
     if (!passwordRegex.test(password)) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(400).json({
+        code: "WEAK_PASSWORD",
+        message:
+          "Password must be at least 8 characters, 1 uppercase & 1 special character"
+      });
     }
 
     const normalizedEmail = email.toLowerCase();
 
-    const exists = await User.exists({ email: normalizedEmail });
-    if (exists) {
-      return res.status(409).json({ message: "Account already exists" });
+    // 2️⃣ Check if verified account already exists
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser && existingUser.isEmailVerified) {
+      return res.status(409).json({
+        code: "ACCOUNT_EXISTS",
+        message: "Account already exists"
+      });
     }
 
+    // 3️⃣ Generate OTP
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await User.create({
-      email: normalizedEmail,
-      password: hashedPassword
+    // 4️⃣ Create or update unverified user
+    const user = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        email: normalizedEmail,
+        password: hashedPassword,
+        emailOtpHash: otpHash,
+        emailOtpExpires: Date.now() + 5 * 60 * 1000, // 5 mins
+        isEmailVerified: false
+      },
+      { upsert: true, new: true }
+    );
+
+    // 5️⃣ Send OTP email
+    await sendEmail({
+      to: normalizedEmail,
+      subject: "Verify your email",
+      html: `
+        <h2>Email Verification</h2>
+        <p>Your verification code:</p>
+        <h1>${otp}</h1>
+        <p>This code expires in 5 minutes.</p>
+      `
     });
 
-    return res.status(201).json({ message: "Registration successful" });
+    // 6️⃣ Create TEMP verification cookie (NO LOGIN YET)
+    const verifyToken = jwt.sign(
+      {
+        sub: user._id.toString(),
+        purpose: "EMAIL_VERIFY"
+      },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "10m" }
+    );
+
+    res.cookie("verify_token", verifyToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 10 * 60 * 1000
+    });
+
+    return res.status(201).json({
+      code: "EMAIL_OTP_SENT",
+      message: "OTP sent to your email"
+    });
+
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("Register error:", error.message);
-    }
-    return res.status(500).json({ message: "Registration failed" });
+    console.error("Register error:", error.message);
+    return res.status(500).json({
+      code: "REGISTER_FAILED",
+      message: "Registration failed"
+    });
   }
 };
+
 exports.login = async (req, res) => {
   try {
-    const { email, password, terms } = req.body;
-    console.log(email,password,terms);
-    
+    const { email, password, terms } = req.body;    
     // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
     }
-
     if (!email || !password || !validator.isEmail(email)) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-
     // 2️⃣ Fetch user
     const user = await User.findOne({ email: email.toLowerCase() })
-      .select("+password email role tokenVersion mustChangePassword");
+      .select("+password email role tokenVersion mustChangePassword isEmailVerified");
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    if (!user.isEmailVerified) {
+  return res.status(403).json({
+    success:false,
+    code: "EMAIL_NOT_VERIFIED",
+    message: "Please verify your email before logging in"
+  });
+}
 
     // 3️⃣ Forced password change
    if (user.mustChangePassword) {
@@ -92,6 +157,7 @@ exports.login = async (req, res) => {
   });
 
   return res.status(403).json({
+    success:false,
     code: "PASSWORD_CHANGE_REQUIRED",
     message: "Password change required"
   });
@@ -103,7 +169,6 @@ exports.login = async (req, res) => {
       user.adminOtpHash = hashOtp(otp);
       user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
       await user.save();
-
       await sendEmail({
         to: user.email,
         subject: "Admin Login Verification Code",
@@ -115,8 +180,8 @@ exports.login = async (req, res) => {
           <p>If this wasn't you, please secure your account.</p>
         `
       });
-
       return res.status(200).json({
+        success:false,
         code: "ADMIN_OTP_REQUIRED",
         message: "OTP sent to your email"
       });
@@ -137,15 +202,15 @@ exports.login = async (req, res) => {
     );
 
     const isProd = process.env.NODE_ENV === "production";
-
     res.cookie("token", token, {
+      path:'/',
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "None" : "Lax",
       maxAge: 60 * 60 * 1000
     });
 
-    return res.status(200).json({ message: "Login successful" });
+    return res.status(200).json({ code :"Logged In", message: "Login successful" });
 
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
@@ -283,8 +348,6 @@ exports.verifyAdminOtp = async (req, res) => {
       adminOtpHash: hashOtp(String(otp)), // ✅ FIX HERE
       adminOtpExpires: { $gt: Date.now() }
     }).select("+adminOtpHash");
-  
-    console.log(user, "user");
 
     if (!user) {
       return res.status(401).json({ message: "Invalid or expired OTP" });
@@ -329,6 +392,39 @@ exports.verifyAdminOtp = async (req, res) => {
   }
 };
 
+exports.verifyEmailOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      emailOtpHash: hashOtp(String(otp)),
+      emailOtpExpires: { $gt: Date.now() }
+    }).select("+emailOtpHash");
+
+    if (!user) {
+      return res.status(401).json({ message: "Invalid or expired OTP" });
+    }
+
+    user.emailOtpHash = undefined;
+    user.emailOtpExpires = undefined;
+    user.isEmailVerified = true;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Email verified successfully"
+    });
+
+  } catch (err) {
+    console.error("Verify email OTP error:", err.message);
+    return res.status(500).json({ message: "Verification failed" });
+  }
+};
+
 
 exports.changePassword = async (req, res) => {
   try {
@@ -358,5 +454,95 @@ exports.changePassword = async (req, res) => {
 
   } catch {
     return res.status(500).json({ message: "Password change failed" });
+  }
+};
+
+
+exports.resendEmailOtp = async (req, res) => {
+  try {
+    const verifyToken = req.cookies.verify_token;
+
+    if (!verifyToken) {
+      return res.status(401).json({
+        code: "VERIFY_SESSION_EXPIRED",
+        message: "Verification session expired. Please register again."
+      });
+    }
+
+    // 🔐 Verify temporary token
+    let decoded;
+    try {
+      decoded = jwt.verify(verifyToken, process.env.JWT_SECRET_KEY);
+    } catch {
+      return res.status(401).json({
+        code: "INVALID_VERIFY_TOKEN",
+        message: "Verification session expired. Please register again."
+      });
+    }
+
+    if (decoded.purpose !== "EMAIL_VERIFY") {
+      return res.status(403).json({
+        code: "INVALID_PURPOSE",
+        message: "Invalid verification request"
+      });
+    }
+
+    // 🔍 Fetch user
+    const user = await User.findById(decoded.sub);
+
+    if (!user) {
+      return res.status(404).json({
+        code: "USER_NOT_FOUND",
+        message: "User not found"
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(409).json({
+        code: "ALREADY_VERIFIED",
+        message: "Email already verified"
+      });
+    }
+
+    // ⏱ Cooldown check (optional but recommended)
+    if (
+      user.emailOtpExpires &&
+      user.emailOtpExpires > Date.now() + 4 * 60 * 1000
+    ) {
+      return res.status(429).json({
+        code: "OTP_ALREADY_SENT",
+        message: "OTP already sent. Please wait before requesting again."
+      });
+    }
+
+    // 🔁 Generate new OTP
+    const otp = generateOtp();
+    user.emailOtpHash = hashOtp(otp);
+    user.emailOtpExpires = Date.now() + 5 * 60 * 1000;
+    await user.save();
+
+    // 📧 Send email
+    await sendEmail({
+      to: user.email,
+      subject: "Resend Email Verification Code",
+      html: `
+        <h2>Email Verification</h2>
+        <p>Your new verification code is:</p>
+        <h1>${otp}</h1>
+        <p>This code expires in 5 minutes.</p>
+      `
+    });
+
+    return res.status(200).json({
+      code: "EMAIL_OTP_RESENT",
+      message: "Verification code resent to your email"
+    });
+
+  } catch (error) {
+    console.error("Resend OTP error:", error.message);
+    return res.status(500).json({
+      code: "RESEND_FAILED",
+      message: "Failed to resend verification code"
+    });
   }
 };

@@ -18,6 +18,10 @@ router.post(
   authController.changePassword
 );
 
+router.post("/resend-email-otp", authController.resendEmailOtp);
+
+router.post("/verify-email", authController.verifyEmailOtp);
+
 router.post("/admin/verify-otp", authController.verifyAdminOtp);
 
 module.exports = router;

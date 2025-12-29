@@ -59,6 +59,15 @@ const userSchema = new mongoose.Schema(
     passwordResetExpires: {
       type: Date
     },
+    // Add these fields if not present
+emailOtpHash: {
+  type: String,
+  select: false
+},
+emailOtpExpires: {
+  type: Date
+},
+
 
     // 🔐 Admin email OTP (2FA)
     adminOtpHash: {
@@ -69,6 +78,7 @@ const userSchema = new mongoose.Schema(
     adminOtpExpires: {
       type: Date
     },
+    
 
     plans: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Plan" }

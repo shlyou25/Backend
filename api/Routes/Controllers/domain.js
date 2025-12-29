@@ -2,7 +2,6 @@ const planSchema = require('../../../models/packages');
 const domainSchema = require('../../../models/domain');
 const { packages } = require('../../middlewares/PackagePlan');
 const { encryptData, decryptData } = require('../../middlewares/crypto');
-const domain = require('../../../models/domain');
 
 exports.adddomain = async (req, res) => {
     try {
@@ -90,39 +89,38 @@ You are trying to add ${domains.length}, which exceeds your limit.`
     }
 };
 
-exports.getdomainbyid = async (req, res) => {
-    try {
-        const userId = req.user.id;
+exports.getdomainbyuserid = async (req, res) => {
+  try {
+    const userId = req.user.id;
 
-        if (!userId) {
-            return res.status(401).json({ message: "Unauthorized user" });
-        }
-        // Fetch all domains of this user
-        const domainsEncrypted  = await domainSchema
-            .find({ userId })
-            .select("domain -_id")           // include these fields
-            .sort({ createdAt: -1 });
+    const domainsEncrypted = await domainSchema
+      .find({ userId })
+      .select("_id domain isChatActive isHidden createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
 
-        // decrypt all
-        const domains = domainsEncrypted.map(d => ({
-            domain: decryptData(d.domain),  // 🔓 decrypted
-            createdAt: d.createdAt
-        }));
-        res.status(200).json({
-            status: true,
-            count: domains.length,
-            domains,
-            message: "Domain Successully Feteched"
-        });
+    const domains = domainsEncrypted.map(d => ({
+      id: d._id,
+      domain: decryptData(d.domain),
+      isChatActive: d.isChatActive,
+      isHidden: d.isHidden,
+      createdAt: d.createdAt
+    }));
 
-    } catch (error) {
-        console.error("Get Domain Error:", error);
-        res.status(500).json({
-            status: false,
-            message: "Error retrieving domains"
-        });
-    }
+    res.status(200).json({
+      status: true,
+      count: domains.length,
+      domains
+    });
+  } catch (error) {
+    console.error("Get Domain Error:", error);
+    res.status(500).json({
+      status: false,
+      message: "Error retrieving domains"
+    });
+  }
 };
+
 
 
 exports.getAllDomains = async (req, res) => {
@@ -158,6 +156,103 @@ exports.getAllDomains = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch domains"
+    });
+  }
+};
+
+
+exports.toggleHide = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const domain = await domainSchema.findOne({ _id: id, userId });
+  if (!domain) {
+    return res.status(404).json({ message: "Domain not found" });
+  }
+
+  domain.isHidden = !domain.isHidden;
+  await domain.save();
+
+  res.json({
+    message: "Domain visibility updated",
+    isHidden: domain.isHidden
+  });
+};
+
+exports.toggleChat = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const domain = await domainSchema.findOne({ _id: id, userId });
+  if (!domain) {
+    return res.status(404).json({ message: "Domain not found" });
+  }
+
+  domain.isChatActive = !domain.isChatActive;
+  await domain.save();
+
+  res.json({
+    message: "Chat status updated",
+    isChatActive: domain.isChatActive
+  });
+};
+
+exports.deleteDomain = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const deleted = await domainSchema.findOneAndDelete({
+    _id: id,
+    userId
+  });
+
+  if (!deleted) {
+    return res.status(404).json({ message: "Domain not found" });
+  }
+
+  res.json({ message: "Domain deleted successfully" });
+};
+
+exports.getHiddenDomains = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const filter = { isHidden: false };
+
+    const domainsEncrypted = await domainSchema
+      .find(filter)
+      .populate("userId", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const total = await domainSchema.countDocuments(filter);
+
+    const domains = domainsEncrypted.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      user: {
+        name: d.userId?.name || "Anonymous"
+      },
+      isChatActive: d.isChatActive
+    }));
+
+    return res.status(200).json({
+      success: true,
+      domains,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
+
+  } catch (error) {
+    console.error("Get hidden domains error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch hidden domains"
     });
   }
 };

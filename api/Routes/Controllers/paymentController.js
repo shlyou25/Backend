@@ -10,7 +10,6 @@ exports.createPaymentIntent = async (req, res) => {
   try {
     const { planTitle } = req.body;
     const userId = req.user.id;
-
     // 1️⃣ Validate plan
     const plan = packages.find(p => p.title === planTitle);
     if (!plan) {
@@ -67,7 +66,6 @@ exports.confirmPayment = async (req, res) => {
     if (paymentIntent.status !== "succeeded") {
       return res.status(400).json({ message: "Payment not successful" });
     }
-
     // 🔐 HARD SECURITY CHECK
     if (paymentIntent.metadata.userId !== userId) {
       return res.status(403).json({ message: "Payment user mismatch" });
