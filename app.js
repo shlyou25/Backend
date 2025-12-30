@@ -16,6 +16,7 @@ const emailRoutes = require('./api/Routes/emailService');
 const domainRoutes = require('./api/Routes/domain');
 const paymentRouter=require('./api/Routes/payment');
 const communicationRouter=require('./api/Routes/communication')
+const faqRoutes=require('./api/Routes/Faq')
 
 // middlewares
 app.use(morgan('dev'));
@@ -52,6 +53,7 @@ app.use('/api/email', emailRoutes);
 app.use('/api/domain', domainRoutes);
 app.use('/api/payment',paymentRouter);
 app.use('/api/communication',communicationRouter);
+app.use('/api/faq',faqRoutes)
 
 
 // 404 handler
