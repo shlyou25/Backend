@@ -29,7 +29,6 @@ exports.getUserOverview = async (req, res) => {
         }
       }
     ]);
-
     // 4️⃣ Convert helpers to maps (O(1) access)
     const planMap = {};
     plans.forEach(plan => {

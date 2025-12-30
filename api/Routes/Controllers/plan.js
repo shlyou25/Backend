@@ -95,24 +95,29 @@ exports.addPlan = async (req, res) => {
   }
 };
 
-exports.getAllPlans=async (req,res)=>{
+exports.getAllPlans = async (req, res) => {
   try {
-    const plans=await Plan.find({role:'user'})
-    .populate("userId","email name")
-    .sort({createdAt:-1})
-    .lean();
+    const plans = await Plan.find()
+      .populate({
+        path: "userId",
+        match: { role: "user" },
+        select: "email name role"
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const filteredPlans = plans.filter(p => p.userId);
+
     return res.status(200).json({
-      success:true,
-      count:plans.length,
-      plans
-    })
+      success: true,
+      count: filteredPlans.length,
+      plans: filteredPlans
+    });
   } catch (error) {
-    if(process.env.NODE_ENV!='production'){
-      console.log("Error getting plans",error.message);
-    }
+    console.error("Error getting plans", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch plans"
     });
   }
-}
+};

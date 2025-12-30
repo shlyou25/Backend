@@ -256,3 +256,157 @@ exports.getHiddenDomains = async (req, res) => {
     });
   }
 };
+
+
+exports.promoteDomain = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+    const { priority } = req.body;
+
+    if (typeof priority !== "number" || priority <= 0) {
+      return res.status(400).json({
+        message: "Priority must be a positive number"
+      });
+    }
+
+    const domain = await domainSchema.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({ message: "Domain not found" });
+    }
+
+    // 🔍 Check if priority already assigned
+    const existing = await domainSchema.findOne({
+      promotionPriority: priority,
+      _id: { $ne: domainId } // allow self-update
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        message: `Priority ${priority} is already assigned`,
+        assignedTo: decryptData(existing.domain),
+        domainId: existing._id
+      });
+    }
+
+    // ✅ Assign / update
+    domain.isPromoted = true;
+    domain.promotionPriority = priority;
+    await domain.save();
+
+    return res.status(200).json({
+      message: "Domain promoted successfully",
+      domainId: domain._id,
+      priority
+    });
+
+  } catch (error) {
+    console.error("Promote domain error:", error);
+    return res.status(500).json({
+      message: "Failed to promote domain"
+    });
+  }
+};
+
+
+exports.removePromotion = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+
+    const domain = await domainSchema.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({ message: "Domain not found" });
+    }
+
+    domain.isPromoted = false;
+    domain.promotionPriority = null;
+    await domain.save();
+
+    return res.status(200).json({
+      message: "Promotion removed successfully"
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Failed to remove promotion" });
+  }
+};
+
+
+exports.updateDomainPriority = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+    const { priority } = req.body;
+
+    if (!Number.isInteger(priority) || priority <= 0) {
+      return res.status(400).json({
+        code: "INVALID_PRIORITY",
+        message: "Priority must be a positive integer"
+      });
+    }
+
+    const domain = await Domain.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({
+        code: "DOMAIN_NOT_FOUND",
+        message: "Domain not found"
+      });
+    }
+
+    // 🔍 Check if priority already used by ANOTHER domain
+    const conflict = await Domain.findOne({
+      promotionPriority: priority,
+      _id: { $ne: domainId }
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        code: "PRIORITY_CONFLICT",
+        message: `Priority ${priority} is already assigned`,
+        assignedTo: decryptData(conflict.domain),
+        domainId: conflict._id
+      });
+    }
+
+    // ✅ Assign / change priority
+    domain.isPromoted = true;
+    domain.promotionPriority = priority;
+    await domain.save();
+
+    return res.status(200).json({
+      message: "Priority updated successfully",
+      domainId,
+      priority
+    });
+
+  } catch (error) {
+    console.error("Update priority error:", error);
+    return res.status(500).json({
+      message: "Failed to update priority"
+    });
+  }
+};
+
+exports.removeDomainPriority = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+
+    const domain = await Domain.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({ message: "Domain not found" });
+    }
+
+    domain.isPromoted = false;
+    domain.promotionPriority = null;
+    await domain.save();
+
+    return res.status(200).json({
+      message: "Domain promotion removed"
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Failed to remove promotion"
+    });
+  }
+};

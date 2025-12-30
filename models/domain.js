@@ -23,6 +23,17 @@ const domainSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
       index: true
+    },
+    isPromoted:{
+      type:Boolean,
+      default:false,
+      index:true
+    },
+     promotionPriority: {
+      type: Number,
+      unique: true,        // 🚨 GLOBAL uniqueness
+      sparse: true,        // allows multiple nulls
+      index: true
     }
   },
   { timestamps: true }

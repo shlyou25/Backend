@@ -13,8 +13,16 @@ router.get("/public", domainController.getHiddenDomains);
 
 
 
+router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);
 
-router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains)
+// DOMAIN PRIORITY & PROMOTION (ADMIN ONLY)
+
+router.put('/:domainId/priority',authenticate,isAdmin,domainController.updateDomainPriority);
+router.delete('/:domainId/priority',authenticate,isAdmin,domainController.removeDomainPriority);
+router.get('/promoted',authenticate,isAdmin,domainController.promoteDomain);
+router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.removeDomainPriority);
+
+
 
 
 
