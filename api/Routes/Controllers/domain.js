@@ -125,10 +125,11 @@ exports.getdomainbyuserid = async (req, res) => {
 
 exports.getAllDomains = async (req, res) => {
   try {
-    const domainsRaw = await domainSchema.find()
+    const domainsRaw = await domainSchema
+      .find()
       .populate({
         path: "userId",
-        match: { role: "user" },        // ✅ filter here
+        match: { role: "user" },      // ✅ only real users
         select: "name email role"
       })
       .sort({ createdAt: -1 })
@@ -138,6 +139,7 @@ exports.getAllDomains = async (req, res) => {
     const domains = domainsRaw
       .filter(d => d.userId)
       .map(d => ({
+        domainId: d._id,              // ✅ ADD THIS
         domain: decryptData(d.domain),
         createdAt: d.createdAt,
         owner: {
@@ -151,6 +153,7 @@ exports.getAllDomains = async (req, res) => {
       count: domains.length,
       domains
     });
+
   } catch (error) {
     console.error("Get domains error:", error.message);
     return res.status(500).json({
@@ -159,6 +162,7 @@ exports.getAllDomains = async (req, res) => {
     });
   }
 };
+
 
 
 exports.toggleHide = async (req, res) => {
@@ -260,8 +264,7 @@ exports.getHiddenDomains = async (req, res) => {
 
 exports.promoteDomain = async (req, res) => {
   try {
-    const { domainId } = req.params;
-    const { priority } = req.body;
+    const {domainId,priority}=req.body
 
     if (typeof priority !== "number" || priority <= 0) {
       return res.status(400).json({
@@ -287,7 +290,6 @@ exports.promoteDomain = async (req, res) => {
         domainId: existing._id
       });
     }
-
     // ✅ Assign / update
     domain.isPromoted = true;
     domain.promotionPriority = priority;
@@ -295,8 +297,7 @@ exports.promoteDomain = async (req, res) => {
 
     return res.status(200).json({
       message: "Domain promoted successfully",
-      domainId: domain._id,
-      priority
+      status:true
     });
 
   } catch (error) {
@@ -407,6 +408,38 @@ exports.removeDomainPriority = async (req, res) => {
     console.error(error);
     return res.status(500).json({
       message: "Failed to remove promotion"
+    });
+  }
+};
+
+exports.getPromotedDomains = async (req, res) => {
+  try {
+    const promotedDomainsRaw = await domainSchema
+      .find({
+        isPromoted: true,
+        promotionPriority: { $ne: null }
+      })
+      .sort({ promotionPriority: 1 })   // ✅ LOWEST first
+      .limit(3)
+      .select("_id domain promotionPriority")
+      .lean();
+
+    const promotedDomains = promotedDomainsRaw.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),     // 🔓 decrypted
+      priority: d.promotionPriority
+    }));
+
+    return res.status(200).json({
+      success: true,
+      domains: promotedDomains
+    });
+
+  } catch (error) {
+    console.error("Get promoted domains error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch promoted domains"
     });
   }
 };
