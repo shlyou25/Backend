@@ -7,5 +7,6 @@ router.post('/addplan',authenticate, planController.addPlan);
 router.get('/getplanbyuser',authenticate,planController.getplansbyuser);
 
 router.get('/allplans',authenticate,isAdmin,planController.getAllPlans)
+router.post('/addplan-admin',authenticate,isAdmin,planController.adminAssignPlan)
 
 module.exports=router

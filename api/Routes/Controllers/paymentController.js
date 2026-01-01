@@ -125,3 +125,8 @@ exports.confirmPayment = async (req, res) => {
     });
   }
 };
+
+
+exports.dummyPayment=async(req,res)=>{
+  
+}

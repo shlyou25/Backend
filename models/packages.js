@@ -49,7 +49,13 @@ const planSchema = new mongoose.Schema(
       ref: "User",        // ✅ FIXED
       required: true,
       index: true
+    },
+    durationInMonths: {
+      type: Number,
+      required: true,
+      min: 1
     }
+
   },
   { timestamps: true }
 );

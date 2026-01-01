@@ -377,8 +377,6 @@ exports.verifyAdminOtp = async (req, res) => {
       sameSite: isProd ? "None" : "Lax",
       maxAge: 60 * 60 * 1000
     });
-    console.log(token);
-
     return res.status(200).json({
       message: "Admin login successful"
     });

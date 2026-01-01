@@ -1,6 +1,6 @@
 const userSchema = require('../../../models/user');
 const Plan = require("../../../models/packages");
-const { packages } = require("../../middlewares/PackagePlan");
+const { packages,adminPlanSchema } = require("../../middlewares/PackagePlan");
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 
 
@@ -118,6 +118,69 @@ exports.getAllPlans = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch plans"
+    });
+  }
+};
+
+
+exports.adminAssignPlan = async (req, res) => {
+  try {
+    // ✅ Validate request body
+    const { error, value } = adminPlanSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        message: error.details[0].message
+      });
+    }
+
+    let { userId, title, feature, durationInMonths } = value;
+
+    // ✅ Ensure numbers
+    feature = Number(feature);
+    durationInMonths = Number(durationInMonths);
+
+    // ✅ Check user
+    const user = await userSchema.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // ✅ Prevent overlapping active plans
+    const existing = await Plan.findOne({ userId })
+      .sort({ createdAt: -1 });
+
+    if (existing && existing.endingDate > new Date()) {
+      return res.status(400).json({
+        message: "User already has an active plan"
+      });
+    }
+
+    // ✅ Calculate dates
+    const startDate = new Date();
+    const endingDate = new Date();
+    endingDate.setMonth(endingDate.getMonth() + durationInMonths);
+
+    // ✅ CREATE PLAN (ALL REQUIRED FIELDS)
+    const newPlan = await Plan.create({
+      userId,
+      title,
+      price: 0,              // admin assigned
+      per: "Month",          // ✅ ENUM SAFE
+      feature,
+      durationInMonths,      // ✅ REQUIRED FIELD
+      startDate,
+      endingDate
+    });
+
+    return res.status(201).json({
+      message: "Plan assigned successfully",
+      plan: newPlan
+    });
+
+  } catch (error) {
+    console.error("Admin assign plan error:", error);
+    return res.status(500).json({
+      message: "Failed to assign plan"
     });
   }
 };

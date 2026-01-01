@@ -1,27 +1,66 @@
 const User = require("../../../models/user");
+const Plan = require("../../../models/packages");
 
 exports.getallUsers = async (req, res) => {
   try {
-    const users = await User.find({role:'user'}, "name email isActive createdAt ").lean();
+    const users = await User.find({ role: "user" })
+      .select("name email isActive createdAt")
+      .lean();
+
     if (!users.length) {
       return res.status(404).json({
         status: false,
         message: "No users found"
       });
     }
-    res.status(200).json({
+    const userIds = users.map(u => u._id);
+
+    const plans = await Plan.aggregate([
+      {
+        $match: {
+          userId: { $in: userIds }
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$userId",
+          title: { $first: "$title" },
+          feature: { $first: "$feature" },
+          status: { $first: "$status" },
+          endingDate: { $first: "$endingDate" }
+        }
+      }
+    ]);
+    const planMap = {};
+    plans.forEach(p => {
+      planMap[p._id.toString()] = {
+        title: p.title,
+        feature: p.feature,
+        status: p.status,
+        endingDate: p.endingDate
+      };
+    });
+    const usersWithPlans = users.map(user => ({
+      ...user,
+      plan: planMap[user._id.toString()] || null
+    }));
+
+    return res.status(200).json({
       status: true,
-      users,
+      users: usersWithPlans,
       message: "Users fetched successfully"
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
+    console.error("Get users error:", error);
+    return res.status(500).json({
       status: false,
       message: "Error fetching users"
     });
   }
 };
+
 
 exports.getuserbyid = async (req, res) => {
   try {

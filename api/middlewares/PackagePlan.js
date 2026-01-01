@@ -15,3 +15,10 @@ exports.selectPlanSchema = Joi.object({
     'Premium','Platinum','Gold'
   )
 });
+
+exports.adminPlanSchema = Joi.object({
+  userId: Joi.string().required(),
+  title: Joi.string().min(3).max(50).required(),
+  feature: Joi.number().integer().positive().required(),
+  durationInMonths: Joi.number().integer().positive().default(1)
+});
