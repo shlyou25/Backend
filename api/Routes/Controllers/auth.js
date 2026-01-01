@@ -9,7 +9,6 @@ const { sendEmail } = require("../../utils/sendEmail");
 exports.register = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
-
     // 1️⃣ Validate input
     if (!terms) {
       return res.status(400).json({
@@ -17,17 +16,14 @@ exports.register = async (req, res) => {
         message: "Please accept terms & policy"
       });
     }
-
     if (!email || !password || !validator.isEmail(email)) {
       return res.status(400).json({
         code: "INVALID_INPUT",
         message: "Invalid email or password"
       });
     }
-
     const passwordRegex =
       /^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         code: "WEAK_PASSWORD",
@@ -35,9 +31,7 @@ exports.register = async (req, res) => {
           "Password must be at least 8 characters, 1 uppercase & 1 special character"
       });
     }
-
     const normalizedEmail = email.toLowerCase();
-
     // 2️⃣ Check if verified account already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
 
@@ -77,8 +71,6 @@ exports.register = async (req, res) => {
         <p>This code expires in 5 minutes.</p>
       `
     });
-
-    // 6️⃣ Create TEMP verification cookie (NO LOGIN YET)
     const verifyToken = jwt.sign(
       {
         sub: user._id.toString(),
@@ -111,7 +103,7 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    const { email, password, terms } = req.body;    
+    const { email, password, terms } = req.body;
     // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
@@ -121,47 +113,47 @@ exports.login = async (req, res) => {
     }
     // 2️⃣ Fetch user
     const user = await User.findOne({ email: email.toLowerCase() })
-      .select("+password email role tokenVersion mustChangePassword isEmailVerified");
+      .select("+password email role tokenVersion mustChangePassword isEmailVerified isActive");
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (!user.isEmailVerified) {
-  return res.status(403).json({
-    success:false,
-    code: "EMAIL_NOT_VERIFIED",
-    message: "Please verify your email before logging in"
-  });
-}
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Please verify your email before logging in"
+      });
+    }
 
     // 3️⃣ Forced password change
-   if (user.mustChangePassword) {
-  const tempToken = jwt.sign(
-    {
-      sub: user._id.toString(),
-      purpose: "PASSWORD_CHANGE",
-      tokenVersion: user.tokenVersion
-    },
-    process.env.JWT_SECRET_KEY,
-    {
-      expiresIn: "10m",
-      algorithm: "HS256"
+    if (user.mustChangePassword) {
+      const tempToken = jwt.sign(
+        {
+          sub: user._id.toString(),
+          purpose: "PASSWORD_CHANGE",
+          tokenVersion: user.tokenVersion
+        },
+        process.env.JWT_SECRET_KEY,
+        {
+          expiresIn: "10m",
+          algorithm: "HS256"
+        }
+      );
+
+      res.cookie("pwd_change_token", tempToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+        maxAge: 10 * 60 * 1000
+      });
+
+      return res.status(403).json({
+        success: false,
+        code: "PASSWORD_CHANGE_REQUIRED",
+        message: "Password change required"
+      });
     }
-  );
-
-  res.cookie("pwd_change_token", tempToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    maxAge: 10 * 60 * 1000
-  });
-
-  return res.status(403).json({
-    success:false,
-    code: "PASSWORD_CHANGE_REQUIRED",
-    message: "Password change required"
-  });
-}
     // 🔐 4️⃣ ADMIN → EMAIL OTP (2FA)
     if (user.role === "admin") {
       const otp = generateOtp();
@@ -181,12 +173,18 @@ exports.login = async (req, res) => {
         `
       });
       return res.status(200).json({
-        success:false,
+        success: false,
         code: "ADMIN_OTP_REQUIRED",
         message: "OTP sent to your email"
       });
     }
-
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_NOT_ACTIVATED",
+        message: "Account Not Activated"
+      });
+    }
     // 5️⃣ NORMAL USER → ISSUE JWT
     const token = jwt.sign(
       {
@@ -203,14 +201,14 @@ exports.login = async (req, res) => {
 
     const isProd = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
-      path:'/',
+      path: '/',
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "None" : "Lax",
       maxAge: 60 * 60 * 1000
     });
 
-    return res.status(200).json({ code :"Logged In", message: "Login successful" });
+    return res.status(200).json({ code: "Logged In", message: "Login successful" });
 
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
@@ -221,7 +219,6 @@ exports.login = async (req, res) => {
 };
 
 exports.logout = async (req, res) => {
-  console.log("Here");
   try {
     await User.findByIdAndUpdate(req.user.id, {
       $inc: { tokenVersion: 1 }
@@ -380,8 +377,8 @@ exports.verifyAdminOtp = async (req, res) => {
       sameSite: isProd ? "None" : "Lax",
       maxAge: 60 * 60 * 1000
     });
-   console.log(token);
-   
+    console.log(token);
+
     return res.status(200).json({
       message: "Admin login successful"
     });
@@ -546,3 +543,6 @@ exports.resendEmailOtp = async (req, res) => {
     });
   }
 };
+
+
+

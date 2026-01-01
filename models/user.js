@@ -43,43 +43,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-
-    // Used to invalidate tokens on logout
     tokenVersion: {
       type: Number,
       default: 0
     },
-
-    // 🔐 Forgot password (email code)
     passwordResetCode: {
       type: String,
       select: false
     },
-
     passwordResetExpires: {
       type: Date
     },
-    // Add these fields if not present
-emailOtpHash: {
-  type: String,
-  select: false
-},
-emailOtpExpires: {
-  type: Date
-},
-
-
-    // 🔐 Admin email OTP (2FA)
+    emailOtpHash: {
+      type: String,
+      select: false
+    },
+    emailOtpExpires: {
+      type: Date
+    },
     adminOtpHash: {
       type: String,
       select: false
     },
-
     adminOtpExpires: {
       type: Date
     },
+    isActive:{
+        type:Boolean,
+        default:false,
+    },
     
-
     plans: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Plan" }
     ]

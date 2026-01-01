@@ -9,6 +9,7 @@ router.put('/updateuserinfo',authenticate,userController.updateuserinfo);
 
 // Admin
 router.get("/allusers", authenticate, isAdmin, userController.getallUsers);
+router.patch("/updateuserstatus", authenticate, isAdmin, userController.toggleUserStatus);
 router.get('/alluseroverview',authenticate,isAdmin,userOverviewController.getUserOverview)
 
 module.exports=router;
