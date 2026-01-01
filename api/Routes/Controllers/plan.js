@@ -1,6 +1,6 @@
 const userSchema = require('../../../models/user');
 const Plan = require("../../../models/packages");
-const { packages,adminPlanSchema } = require("../../middlewares/PackagePlan");
+const { packages,adminPlanSchema,editPlanSchema } = require("../../middlewares/PackagePlan");
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 
 
@@ -159,8 +159,6 @@ exports.adminAssignPlan = async (req, res) => {
     const startDate = new Date();
     const endingDate = new Date();
     endingDate.setMonth(endingDate.getMonth() + durationInMonths);
-
-    // ✅ CREATE PLAN (ALL REQUIRED FIELDS)
     const newPlan = await Plan.create({
       userId,
       title,
@@ -181,6 +179,76 @@ exports.adminAssignPlan = async (req, res) => {
     console.error("Admin assign plan error:", error);
     return res.status(500).json({
       message: "Failed to assign plan"
+    });
+  }
+};
+
+
+exports.adminEditPlan = async (req, res) => {
+  try {
+    // 🔍 Validate input
+    const { error, value } = editPlanSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        message: error.details[0].message
+      });
+    }
+
+    const { planId, feature, extendByMonths } = value;
+    // 🔎 Find plan
+    const plan = await Plan.findById(planId);
+    if (!plan) {
+      return res.status(404).json({
+        message: "Plan not found"
+      });
+    }
+
+    // 🚫 Prevent editing inactive plans
+    if (plan.status !== "active") {
+      return res.status(400).json({
+        message: "Only active plans can be edited"
+      });
+    }
+
+    // ✅ Increase features only
+    if (feature !== undefined) {
+      if (feature < plan.feature) {
+        return res.status(400).json({
+          status:false,
+          message: "Feature count can only be increased"
+        });
+      }
+      plan.feature = feature;
+    }
+
+    // ✅ Extend ending date only
+    if (extendByMonths !== undefined) {
+      const newEndingDate = new Date(plan.endingDate);
+      newEndingDate.setMonth(
+        newEndingDate.getMonth() + extendByMonths
+      );
+
+      if (newEndingDate <= plan.endingDate) {
+        return res.status(400).json({
+          status:false,
+          message: "Ending date must be extended forward"
+        });
+      }
+
+      plan.endingDate = newEndingDate;
+    }
+    await plan.save();
+
+    return res.status(200).json({
+      status:true,
+      message: "Plan updated successfully",
+    });
+
+  } catch (error) {
+    console.error("Edit plan error:", error);
+    return res.status(500).json({
+      status:false,
+      message: "Failed to update plan"
     });
   }
 };

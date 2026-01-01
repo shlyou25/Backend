@@ -22,3 +22,10 @@ exports.adminPlanSchema = Joi.object({
   feature: Joi.number().integer().positive().required(),
   durationInMonths: Joi.number().integer().positive().default(1)
 });
+
+
+exports.editPlanSchema = Joi.object({
+  planId: Joi.string().required(),
+  feature: Joi.number().integer().positive().optional(),
+  extendByMonths: Joi.number().integer().positive().optional()
+}).or("feature", "extendByMonths"); // at least one required
