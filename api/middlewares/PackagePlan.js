@@ -12,7 +12,8 @@ const Joi = require("joi");
 exports.selectPlanSchema = Joi.object({
   title: Joi.string().required().valid(
     'Starter', 'Basic', 'Business',
-    'Premium','Platinum','Gold'
+    'Premium','Platinum','Gold',
+    'Gift','Trail'
   )
 });
 
