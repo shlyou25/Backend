@@ -58,13 +58,9 @@ exports.getAllFaqs = async (req, res) => {
   }
 };
 
-
-
-
 exports.updateFaq = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { question, answer, priorityNumber } = req.body;
+    const { id,question, answer, priorityNumber } = req.body;
 
     // 🔒 Check priority conflict
     if (priorityNumber !== undefined) {
