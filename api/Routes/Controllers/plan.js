@@ -186,7 +186,6 @@ exports.adminAssignPlan = async (req, res) => {
 
 exports.adminEditPlan = async (req, res) => {
   try {
-    // 🔍 Validate input
     const { error, value } = editPlanSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
@@ -195,7 +194,7 @@ exports.adminEditPlan = async (req, res) => {
     }
 
     const { planId, feature, extendByMonths } = value;
-    // 🔎 Find plan
+
     const plan = await Plan.findById(planId);
     if (!plan) {
       return res.status(404).json({
@@ -203,51 +202,38 @@ exports.adminEditPlan = async (req, res) => {
       });
     }
 
-    // 🚫 Prevent editing inactive plans
     if (plan.status !== "active") {
       return res.status(400).json({
         message: "Only active plans can be edited"
       });
     }
 
-    // ✅ Increase features only
+    // ✅ Feature can increase, decrease, or be zero
     if (feature !== undefined) {
-      if (feature < plan.feature) {
-        return res.status(400).json({
-          status:false,
-          message: "Feature count can only be increased"
-        });
-      }
       plan.feature = feature;
     }
 
-    // ✅ Extend ending date only
-    if (extendByMonths !== undefined) {
+    // ✅ Extend months (only if > 0)
+    if (extendByMonths && extendByMonths > 0) {
+      plan.durationInMonths += extendByMonths;
+
       const newEndingDate = new Date(plan.endingDate);
       newEndingDate.setMonth(
         newEndingDate.getMonth() + extendByMonths
       );
-
-      if (newEndingDate <= plan.endingDate) {
-        return res.status(400).json({
-          status:false,
-          message: "Ending date must be extended forward"
-        });
-      }
-
       plan.endingDate = newEndingDate;
     }
+
     await plan.save();
 
     return res.status(200).json({
-      status:true,
       message: "Plan updated successfully",
+      plan
     });
 
   } catch (error) {
     console.error("Edit plan error:", error);
     return res.status(500).json({
-      status:false,
       message: "Failed to update plan"
     });
   }
