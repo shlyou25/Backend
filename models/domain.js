@@ -13,6 +13,11 @@ const domainSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    status: {
+      type: String,
+      enum: ["Pass", "Fail", "Manual Review"],
+      index: true
+    },
     isChatActive: {
       type: Boolean,
       default: true,

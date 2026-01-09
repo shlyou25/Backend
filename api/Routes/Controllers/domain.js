@@ -1,3 +1,4 @@
+const axios = require("axios");
 const planSchema = require('../../../models/packages');
 const domainSchema = require('../../../models/domain');
 // const { packages } = require('../../middlewares/PackagePlan');
@@ -96,7 +97,7 @@ exports.adddomain = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 🔹 Get active plan
+    // 🔹 Active plan
     const activePlan = await planSchema
       .findOne({ userId })
       .sort({ createdAt: -1 });
@@ -107,7 +108,6 @@ exports.adddomain = async (req, res) => {
       });
     }
 
-    // ✅ USE DB VALUE (supports custom admin plans)
     const allowedDomains = activePlan.feature;
 
     let { domains } = req.body;
@@ -127,76 +127,94 @@ exports.adddomain = async (req, res) => {
       return res.status(400).json({ message: "Invalid domain format." });
     }
 
-    // 🔹 Check duplicates in request
+    // 🔹 Check duplicate in request
     const seen = new Set();
-    const duplicatesInRequest = [];
-
-    for (const d of domains) {
-      if (seen.has(d)) duplicatesInRequest.push(d);
-      seen.add(d);
-    }
-
-    if (duplicatesInRequest.length > 0) {
+    const dupReq = domains.filter(d => seen.size === seen.add(d).size);
+    if (dupReq.length) {
       return res.status(400).json({
-        status: false,
-        message: "Duplicate domains found in your request.",
-        duplicates: [...new Set(duplicatesInRequest)]
+        message: "Duplicate domains in request.",
+        duplicates: [...new Set(dupReq)]
       });
     }
 
-    // 🔹 Check duplicates in DB
+    // 🔹 Check duplicate in DB
     const existingEncrypted = await domainSchema.find({ userId }).lean();
-    const existingPlain = existingEncrypted.map(doc =>
-      decryptData(doc.domain)
+    const existingPlain = existingEncrypted.map(d =>
+      decryptData(d.domain)
     );
 
-    const duplicatesInDB = domains.filter(d =>
-      existingPlain.includes(d)
-    );
-
-    if (duplicatesInDB.length > 0) {
+    const dupDB = domains.filter(d => existingPlain.includes(d));
+    if (dupDB.length) {
       return res.status(400).json({
         message: "Domains already exist.",
-        duplicates: duplicatesInDB
+        duplicates: dupDB
       });
     }
 
+    // 🔹 Call external domain check API
+    const apiResponse = await axios.post(
+      "https://6af88f6558d8.ngrok-free.app/check_domains",
+      { domains }
+    );
+
+    const results = apiResponse.data.results || [];
+
+    const passDomains = [];
+    const manualDomains = [];
+    const failedDomains = [];
+
+    for (const r of results) {
+      if (r.status === "Pass") passDomains.push(r);
+      else if (r.status === "Manual Review") manualDomains.push(r);
+      else failedDomains.push(r);
+    }
+
+    const totalToInsert = passDomains.length + manualDomains.length;
     const existingCount = existingPlain.length;
 
     // 🔹 Enforce plan limit
     if (
-      allowedDomains !== -1 && // 🔓 optional unlimited plan support
-      existingCount + domains.length > allowedDomains
+      allowedDomains !== -1 &&
+      existingCount + totalToInsert > allowedDomains
     ) {
       return res.status(400).json({
         message: `Your plan allows ${allowedDomains} domains.
 You already added ${existingCount}.
-You are trying to add ${domains.length}, which exceeds your limit.`
+You can add only ${allowedDomains - existingCount} more.`,
+        pass: passDomains.map(d => d.domain),
+        manualReview: manualDomains.map(d => d.domain),
+        failed: failedDomains.map(d => d.domain)
       });
     }
 
-    // 🔹 Insert domains
-    const docs = domains.map(domain => ({
-      domain: encryptData(domain),
-      userId
+    // 🔹 Insert Pass + Manual Review
+    const docs = [...passDomains, ...manualDomains].map(d => ({
+      domain: encryptData(d.domain),
+      userId,
+      status: d.status,
+      finalUrl: d.final_url
     }));
 
-    await domainSchema.insertMany(docs);
+    if (docs.length) {
+      await domainSchema.insertMany(docs);
+    }
 
     return res.status(200).json({
-      message: "Domains added successfully.",
-      addedCount: domains.length,
+      message: "Domain processing completed.",
+      added: passDomains.map(d => d.domain),
+      manualReview: manualDomains.map(d => d.domain),
+      failed: failedDomains.map(d => d.domain),
       remaining:
         allowedDomains === -1
           ? "Unlimited"
-          : allowedDomains - (existingCount + domains.length)
+          : allowedDomains - (existingCount + totalToInsert)
     });
 
   } catch (error) {
     console.error("AddDomain Error:", error);
     return res.status(500).json({
       status: false,
-      message: "Error adding the domain"
+      message: "Error adding domains"
     });
   }
 };
@@ -204,9 +222,8 @@ You are trying to add ${domains.length}, which exceeds your limit.`
 exports.getdomainbyuserid = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const domainsEncrypted = await domainSchema
-      .find({ userId })
+      .find({ userId,status:"Pass"})
       .select("_id domain isChatActive isHidden createdAt")
       .sort({ createdAt: -1 })
       .lean();
@@ -233,36 +250,43 @@ exports.getdomainbyuserid = async (req, res) => {
   }
 };
 
-
-
 exports.getAllDomains = async (req, res) => {
   try {
     const domainsRaw = await domainSchema
       .find()
       .populate({
         path: "userId",
-        match: { role: "user" },      // ✅ only real users
+        match: { role: "user" },
         select: "name email role"
       })
       .sort({ createdAt: -1 })
       .lean();
 
     // ⚠️ Remove domains whose owner was filtered out
-    const domains = domainsRaw
-      .filter(d => d.userId)
-      .map(d => ({
-        domainId: d._id,              // ✅ ADD THIS
-        domain: decryptData(d.domain),
-        createdAt: d.createdAt,
-        owner: {
-          name: d.userId.name,
-          email: d.userId.email
-        }
-      }));
+    const filtered = domainsRaw.filter(d => d.userId);
+
+    // 🔢 Count manual review domains
+    const manualReviewCount = filtered.filter(
+      d => d.status === "Manual Review"
+    ).length;
+
+    // 🔄 Map final response
+    const domains = filtered.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      status: d.status,
+      finalUrl: d.finalUrl || null,
+      createdAt: d.createdAt,
+      owner: {
+        name: d.userId.name,
+        email: d.userId.email
+      }
+    }));
 
     return res.status(200).json({
       success: true,
       count: domains.length,
+      manualReviewCount,      // ✅ ADDED
       domains
     });
 
@@ -274,8 +298,6 @@ exports.getAllDomains = async (req, res) => {
     });
   }
 };
-
-
 
 exports.toggleHide = async (req, res) => {
   const { id } = req.params;
@@ -316,7 +338,6 @@ exports.toggleChat = async (req, res) => {
 exports.deleteDomain = async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
-
   const deleted = await domainSchema.findOneAndDelete({
     _id: id,
     userId
@@ -335,7 +356,7 @@ exports.getHiddenDomains = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const filter = { isHidden: false };
+    const filter = { isHidden: false, status:"Pass"};
 
     const domainsEncrypted = await domainSchema
       .find(filter)
@@ -466,7 +487,7 @@ exports.updateDomainPriority = async (req, res) => {
     }
 
     // 🔍 Check if priority already used by ANOTHER domain
-    const conflict = await Domain.findOne({
+    const conflict = await domainSchema.findOne({
       promotionPriority: priority,
       _id: { $ne: domainId }
     });
@@ -503,7 +524,7 @@ exports.removeDomainPriority = async (req, res) => {
   try {
     const { domainId } = req.params;
 
-    const domain = await Domain.findById(domainId);
+    const domain = await domainSchema.findById(domainId);
     if (!domain) {
       return res.status(404).json({ message: "Domain not found" });
     }
