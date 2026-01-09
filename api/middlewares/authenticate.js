@@ -8,15 +8,19 @@ exports.authenticate = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
     const user = await User.findById(decoded.sub)
-      .select("role tokenVersion")
+      .select("role tokenVersion isActive")
       .lean();
     
     if (!user || user.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+   if (!user.isActive) {
+      return res.status(403).json({
+        message: "Account is inactive. Please contact support."
+      });
     }
     req.user = {
       id: decoded.sub,
