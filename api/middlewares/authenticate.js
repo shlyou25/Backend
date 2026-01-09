@@ -23,7 +23,6 @@ exports.authenticate = async (req, res, next) => {
         message: "Account is inactive. Please contact support."
       });
     }
-
     req.user = {
       id: decoded.sub,
       role: user.role

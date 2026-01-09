@@ -205,7 +205,7 @@ exports.login = async (req, res) => {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "None" : "Lax",
-      maxAge: 60 * 60 * 100000
+      maxAge: 60 * 60 * 1000
     });
 
     return res.status(200).json({ code: "Logged In", message: "Login successful" });
