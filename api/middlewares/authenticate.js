@@ -4,7 +4,7 @@ const User = require("../../models/user");
 exports.authenticate = async (req, res, next) => {
   try {
     const token = req.cookies?.token;
-  
+
     if (!token) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -13,15 +13,17 @@ exports.authenticate = async (req, res, next) => {
     const user = await User.findById(decoded.sub)
       .select("role tokenVersion isActive")
       .lean();
-    
+
     if (!user || user.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-   if (!user.isActive) {
+   
+    if (user.role !== "admin" && !user.isActive) {
       return res.status(403).json({
         message: "Account is inactive. Please contact support."
       });
     }
+
     req.user = {
       id: decoded.sub,
       role: user.role
