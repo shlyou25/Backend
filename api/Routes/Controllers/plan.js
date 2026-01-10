@@ -96,6 +96,8 @@ exports.addPlan = async (req, res) => {
   }
 };
 
+
+
 exports.getAllPlans = async (req, res) => {
   try {
     const plans = await Plan.find()
@@ -183,6 +185,7 @@ exports.adminAssignPlan = async (req, res) => {
     });
   }
 };
+
 
 
 exports.adminEditPlan = async (req, res) => {
