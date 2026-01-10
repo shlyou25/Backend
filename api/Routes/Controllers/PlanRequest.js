@@ -143,7 +143,7 @@ exports.approvePlanAdmin = async (req, res) => {
     endingDate.setMonth(startDate.getMonth() + durationInMonths);
 
     // Create plan
-    const newPlan = await Plan.create({
+    const newPlan = await PlanSchema.create({
       userId,
       title: selectedPlan.title,
       price: selectedPlan.price,
