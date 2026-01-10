@@ -4,6 +4,7 @@ const { packages,adminPlanSchema,editPlanSchema } = require("../../middlewares/P
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 
 
+
 exports.getplansbyuser = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -238,3 +239,5 @@ exports.adminEditPlan = async (req, res) => {
     });
   }
 };
+
+
