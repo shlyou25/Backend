@@ -1,4 +1,5 @@
 const planRequestSchema = require('../../../models/planRequestSchema')
+const userSchema =require('../../../models/user')
 const PlanSchema = require('../../../models/packages')
 const { packages } = require('../../middlewares/PackagePlan')
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
