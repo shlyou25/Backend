@@ -222,17 +222,19 @@ exports.getdomainbyuserid = async (req, res) => {
   try {
     const userId = req.user.id;
     const domainsEncrypted = await domainSchema
-      .find({ userId,status:"Pass"})
-      .select("_id domain isChatActive isHidden createdAt finalUrl")
+      .find({ userId})
+      .select("_id domain isChatActive isHidden createdAt finalUrl status")
       .sort({ createdAt: -1 })
       .lean();
 
     const domains = domainsEncrypted.map(d => ({
       id: d._id,
       domain: decryptData(d.domain),
+      status:d.status,
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
-      createdAt: d.createdAt
+      createdAt: d.createdAt,
+      finalUrl:d.finalUrl
     }));
 
     res.status(200).json({
