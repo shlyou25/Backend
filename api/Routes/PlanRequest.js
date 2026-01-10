@@ -6,7 +6,7 @@ const planRequestController=require('../Routes/Controllers/PlanRequest')
 router.post('/addplanrequest',authenticate, planRequestController.planRequest);
 
 //admin
-router.post('/getallplanrequest',authenticate,isAdmin,planRequestController.getAllPlanRequests)
+router.get('/getallplanrequest',authenticate,isAdmin,planRequestController.getAllPlanRequests)
 
 
 

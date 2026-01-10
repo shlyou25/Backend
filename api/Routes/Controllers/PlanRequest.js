@@ -1,6 +1,8 @@
 const planRequestSchema =require('../../../models/planRequestSchema')
 const {packages} =require('../../middlewares/PackagePlan')
 exports.planRequest = async (req, res) => {
+  console.log("in");
+  
   try {
     const userId = req.user?.id; 
     const { planTitle } = req.body;
