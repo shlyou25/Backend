@@ -186,13 +186,12 @@ You can add only ${allowedDomains - existingCount} more.`,
         failed: failedDomains.map(d => d.domain)
       });
     }
-
     // 🔹 Insert Pass + Manual Review
-    const docs = [...passDomains, ...manualDomains].map(d => ({
+    const docs = [...passDomains, ...manualDomains,...failedDomains].map(d => ({
       domain: encryptData(d.domain),
       userId,
       status: d.status,
-      finalUrl: d.final_url
+      finalUrl: d.final_url || null
     }));
 
     if (docs.length) {
@@ -224,7 +223,7 @@ exports.getdomainbyuserid = async (req, res) => {
     const userId = req.user.id;
     const domainsEncrypted = await domainSchema
       .find({ userId,status:"Pass"})
-      .select("_id domain isChatActive isHidden createdAt")
+      .select("_id domain isChatActive isHidden createdAt finalUrl")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -350,16 +349,62 @@ exports.deleteDomain = async (req, res) => {
   res.json({ message: "Domain deleted successfully" });
 };
 
+// exports.getHiddenDomains = async (req, res) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     const filter = { isHidden: false, status:"Pass"};
+
+//     const domainsEncrypted = await domainSchema
+//       .find(filter)
+//       .populate("userId", "name")
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit)
+//       .lean();
+
+//     const total = await domainSchema.countDocuments(filter);
+
+//     const domains = domainsEncrypted.map(d => ({
+//       domainId: d._id,
+//       domain: decryptData(d.domain),
+//       user: {
+//         name: d.userId?.name || "Anonymous"
+//       },
+//       isChatActive: d.isChatActive,
+//       finalUrl:d.finalUrl
+//     }));
+
+//     return res.status(200).json({
+//       success: true,
+//       domains,
+//       total,
+//       page,
+//       totalPages: Math.ceil(total / limit)
+//     });
+
+//   } catch (error) {
+//     console.error("Get hidden domains error:", error.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch hidden domains"
+//     });
+//   }
+// };
+
 exports.getHiddenDomains = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const filter = { isHidden: false, status:"Pass"};
+    const filter = { isHidden: false, status: "Pass" };
 
     const domainsEncrypted = await domainSchema
       .find(filter)
+      .select("_id domain isChatActive finalUrl userId createdAt") // ✅ ADD finalUrl
       .populate("userId", "name")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -374,7 +419,8 @@ exports.getHiddenDomains = async (req, res) => {
       user: {
         name: d.userId?.name || "Anonymous"
       },
-      isChatActive: d.isChatActive
+      isChatActive: d.isChatActive,
+      finalUrl: d.finalUrl || null // ✅ SAFE RETURN
     }));
 
     return res.status(200).json({
@@ -395,6 +441,7 @@ exports.getHiddenDomains = async (req, res) => {
 };
 
 
+
 exports.promoteDomain = async (req, res) => {
   try {
     const {domainId,priority}=req.body
@@ -409,7 +456,12 @@ exports.promoteDomain = async (req, res) => {
     if (!domain) {
       return res.status(404).json({ message: "Domain not found" });
     }
-
+    if (domain.status !== "Pass") { // change to "PASS" if your enum is uppercase
+      return res.status(403).json({
+        message: "Only domains with PASS status can be promoted",
+        currentStatus: domain.status
+      });
+    }
     // 🔍 Check if priority already assigned
     const existing = await domainSchema.findOne({
       promotionPriority: priority,

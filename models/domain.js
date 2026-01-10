@@ -18,6 +18,10 @@ const domainSchema = new mongoose.Schema(
       enum: ["Pass", "Fail", "Manual Review"],
       index: true
     },
+    finalUrl: {
+      type: String,          // ✅ MUST EXIST
+      default: null
+    },
     isChatActive: {
       type: Boolean,
       default: true,
