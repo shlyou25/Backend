@@ -82,8 +82,10 @@ exports.register = async (req, res) => {
 
     res.cookie("verify_token", verifyToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      secure: true,
+      sameSite: "none",
+      // secure: process.env.NODE_ENV === "production",
+      // sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
       maxAge: 10 * 60 * 1000
     });
 
@@ -143,8 +145,10 @@ exports.login = async (req, res) => {
 
       res.cookie("pwd_change_token", tempToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+        // secure: process.env.NODE_ENV === "production",
+        // sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+        secure: true,
+        sameSite: "none",
         maxAge: 10 * 60 * 1000
       });
 
@@ -203,8 +207,10 @@ exports.login = async (req, res) => {
     res.cookie("token", token, {
       path: '/',
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "None" : "Lax",
+      // secure: isProd,
+      // sameSite: isProd ? "None" : "Lax",
+      secure:true,
+      sameSite: "none",
       maxAge: 60 * 60 * 1000
     });
 
@@ -298,8 +304,10 @@ exports.forgotPassword = async (req, res) => {
 
     res.cookie("reset_token", resetToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      // secure: process.env.NODE_ENV === "production",
+      // sameSite: "strict",
+      secure:true,
+      sameSite: "none",
       maxAge: 10 * 60 * 1000
     });
 
@@ -425,8 +433,10 @@ exports.verifyAdminOtp = async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "None" : "Lax",
+      // secure: isProd,
+      // sameSite: isProd ? "None" : "Lax",
+      secure:true,
+      sameSite: "none",
       maxAge: 60 * 60 * 1000
     });
     return res.status(200).json({
@@ -711,7 +721,7 @@ exports.verifyForgotOtp = async (req, res) => {
     }
 
     const user = await User.findById(decoded.sub)
-    .select("+passwordResetCode +passwordResetExpires");
+      .select("+passwordResetCode +passwordResetExpires");
 
     if (!user || !user.passwordResetCode) {
       return res.status(404).json({
@@ -747,8 +757,10 @@ exports.verifyForgotOtp = async (req, res) => {
 
     res.cookie("reset_token", verifiedToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      // secure: process.env.NODE_ENV === "production",
+      // sameSite: "strict",
+      secure:true,
+      sameSite: "none",
       maxAge: 10 * 60 * 1000
     });
 
