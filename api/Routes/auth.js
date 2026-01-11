@@ -18,6 +18,10 @@ router.post(
   authController.changePassword
 );
 
+
+router.post("/resend-forgot-otp", authController.resendForgotPasswordOtp);
+router.post("/verify-forgot-otp", authController.verifyForgotOtp);
+
 router.post("/resend-email-otp", authController.resendEmailOtp);
 
 router.post("/verify-email", authController.verifyEmailOtp);

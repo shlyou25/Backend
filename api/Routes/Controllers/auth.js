@@ -269,11 +269,13 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // Prevent email enumeration
     if (!email) {
       return res.json({ message: "If email exists, code sent" });
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
+
     if (!user) {
       return res.json({ message: "If email exists, code sent" });
     }
@@ -284,53 +286,103 @@ exports.forgotPassword = async (req, res) => {
     user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
+    // 🔐 Create temporary reset session
+    const resetToken = jwt.sign(
+      {
+        sub: user._id,
+        purpose: "PASSWORD_RESET"
+      },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "10m" }
+    );
+
+    res.cookie("reset_token", resetToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 10 * 60 * 1000
+    });
+
     await sendEmail({
       to: user.email,
       subject: "Password Reset Code",
       html: `
         <h2>Password Reset</h2>
-        <p>Your code:</p>
+        <p>Your verification code is:</p>
         <h1>${code}</h1>
-        <p>Expires in 10 minutes</p>
+        <p>This code expires in 10 minutes.</p>
       `
     });
 
     return res.json({ message: "If email exists, code sent" });
+
   } catch (err) {
-    console.error(err);
+    console.error("Forgot password error:", err);
     return res.status(500).json({ message: "Error sending code" });
   }
 };
 
 
-
 exports.resetPassword = async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body;
+    const { newPassword } = req.body;
+    const resetToken = req.cookies.reset_token;
 
-    const user = await User.findOne({
-      email: email.toLowerCase(),
-      passwordResetCode: hashOtp(code),
-      passwordResetExpires: { $gt: Date.now() }
-    }).select("+passwordResetCode");
+    if (!resetToken) {
+      return res.status(401).json({
+        code: "RESET_SESSION_EXPIRED",
+        message: "Password reset session expired"
+      });
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters"
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET_KEY);
+    } catch {
+      return res.status(401).json({
+        message: "Password reset session expired"
+      });
+    }
+
+    if (decoded.purpose !== "PASSWORD_RESET_VERIFIED") {
+      return res.status(403).json({
+        message: "OTP verification required"
+      });
+    }
+
+    const user = await User.findById(decoded.sub);
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid or expired code" });
+      return res.status(404).json({
+        message: "User not found"
+      });
     }
 
     user.password = await bcrypt.hash(newPassword, 12);
-    user.passwordResetCode = undefined;
-    user.passwordResetExpires = undefined;
-    user.tokenVersion += 1;
+    user.tokenVersion += 1; // invalidate all sessions
 
     await user.save();
 
-    return res.json({ message: "Password reset successful" });
-  } catch {
-    return res.status(500).json({ message: "Reset failed" });
+    // 🔐 Destroy reset session
+    res.clearCookie("reset_token");
+
+    return res.status(200).json({
+      message: "Password reset successful. Please login."
+    });
+
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({
+      message: "Password reset failed"
+    });
   }
 };
-
 
 
 exports.verifyAdminOtp = async (req, res) => {
@@ -544,3 +596,177 @@ exports.resendEmailOtp = async (req, res) => {
 
 
 
+exports.resendForgotPasswordOtp = async (req, res) => {
+  try {
+    const resetToken = req.cookies.reset_token;
+    if (!resetToken) {
+      return res.status(401).json({
+        code: "RESET_SESSION_EXPIRED",
+        message: "Password reset session expired. Please start again."
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET_KEY);
+    } catch {
+      return res.status(401).json({
+        code: "INVALID_RESET_TOKEN",
+        message: "Password reset session expired. Please start again."
+      });
+    }
+
+    if (decoded.purpose !== "PASSWORD_RESET") {
+      return res.status(403).json({
+        code: "INVALID_PURPOSE",
+        message: "Invalid password reset request"
+      });
+    }
+
+    const user = await User.findById(decoded.sub);
+
+    if (!user) {
+      return res.status(404).json({
+        code: "USER_NOT_FOUND",
+        message: "User not found"
+      });
+    }
+
+    // ⏱ Cooldown
+    if (
+      user.passwordResetExpires &&
+      user.passwordResetExpires > Date.now() + 6 * 60 * 1000
+    ) {
+      return res.status(429).json({
+        code: "OTP_ALREADY_SENT",
+        message: "OTP already sent. Please wait before requesting again."
+      });
+    }
+
+    const otp = generateOtp();
+    user.passwordResetCode = hashOtp(otp);
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+
+    await sendEmail({
+      to: user.email,
+      subject: "Password Reset Code",
+      html: `
+        <h2>Password Reset</h2>
+        <p>Your new reset code is:</p>
+        <h1>${otp}</h1>
+        <p>This code expires in 10 minutes.</p>
+      `
+    });
+
+    return res.status(200).json({
+      code: "PASSWORD_RESET_OTP_RESENT",
+      message: "Password reset code resent"
+    });
+
+  } catch (error) {
+    console.error("Resend reset OTP error:", error);
+    return res.status(500).json({
+      code: "RESEND_FAILED",
+      message: "Failed to resend reset code"
+    });
+  }
+};
+
+exports.verifyForgotOtp = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    const resetToken = req.cookies.reset_token;
+
+    if (!resetToken) {
+      return res.status(401).json({
+        code: "RESET_SESSION_EXPIRED",
+        message: "Password reset session expired. Please restart."
+      });
+    }
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        code: "INVALID_OTP",
+        message: "Invalid OTP format"
+      });
+    }
+
+    // 🔐 Verify reset session
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET_KEY);
+    } catch {
+      return res.status(401).json({
+        code: "INVALID_RESET_TOKEN",
+        message: "Password reset session expired"
+      });
+    }
+
+    if (decoded.purpose !== "PASSWORD_RESET") {
+      return res.status(403).json({
+        code: "INVALID_PURPOSE",
+        message: "Invalid reset request"
+      });
+    }
+
+    const user = await User.findById(decoded.sub)
+    .select("+passwordResetCode +passwordResetExpires");
+
+    if (!user || !user.passwordResetCode) {
+      return res.status(404).json({
+        code: "RESET_NOT_FOUND",
+        message: "Password reset request not found"
+      });
+    }
+    if (user.passwordResetExpires < Date.now()) {
+      return res.status(410).json({
+        code: "OTP_EXPIRED",
+        message: "Reset code expired. Please request again."
+      });
+    }
+
+    const hashedOtp = hashOtp(otp);
+
+    if (hashedOtp !== user.passwordResetCode) {
+      return res.status(401).json({
+        code: "OTP_INVALID",
+        message: "Invalid reset code"
+      });
+    }
+
+    // 🔐 OTP verified — promote session to PASSWORD_RESET_VERIFIED
+    const verifiedToken = jwt.sign(
+      {
+        sub: user._id,
+        purpose: "PASSWORD_RESET_VERIFIED"
+      },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "10m" }
+    );
+
+    res.cookie("reset_token", verifiedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 10 * 60 * 1000
+    });
+
+    // 🔐 Invalidate OTP so it cannot be reused
+    user.passwordResetCode = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    return res.status(200).json({
+      code: "RESET_VERIFIED",
+      message: "OTP verified. You may now set a new password."
+    });
+
+  } catch (error) {
+    console.error("Verify forgot OTP error:", error);
+    return res.status(500).json({
+      code: "VERIFY_FAILED",
+      message: "Failed to verify reset code"
+    });
+  }
+};
