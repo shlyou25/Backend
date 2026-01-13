@@ -159,30 +159,30 @@ exports.login = async (req, res) => {
       });
     }
     // 🔐 4️⃣ ADMIN → EMAIL OTP (2FA)
-    if (user.role === "admin") {
-      const otp = generateOtp();
+    // if (user.role === "admin") {
+    //   const otp = generateOtp();
 
-      user.adminOtpHash = hashOtp(otp);
-      user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
-      await user.save();
-      await sendEmail({
-        to: user.email,
-        subject: "Admin Login Verification Code",
-        html: `
-          <h2>Admin Login Verification</h2>
-          <p>Your one-time verification code is:</p>
-          <h1>${otp}</h1>
-          <p>This code expires in 5 minutes.</p>
-          <p>If this wasn't you, please secure your account.</p>
-        `
-      });
-      return res.status(200).json({
-        success: false,
-        code: "ADMIN_OTP_REQUIRED",
-        message: "OTP sent to your email"
-      });
-    }
-    if (!user.isActive) {
+    //   user.adminOtpHash = hashOtp(otp);
+    //   user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+    //   await user.save();
+    //   await sendEmail({
+    //     to: user.email,
+    //     subject: "Admin Login Verification Code",
+    //     html: `
+    //       <h2>Admin Login Verification</h2>
+    //       <p>Your one-time verification code is:</p>
+    //       <h1>${otp}</h1>
+    //       <p>This code expires in 5 minutes.</p>
+    //       <p>If this wasn't you, please secure your account.</p>
+    //     `
+    //   });
+    //   return res.status(200).json({
+    //     success: false,
+    //     code: "ADMIN_OTP_REQUIRED",
+    //     message: "OTP sent to your email"
+    //   });
+    // }
+    if (!user.isActive && user.role != "admin") {
       return res.status(403).json({
         success: false,
         code: "ACCOUNT_NOT_ACTIVATED",
