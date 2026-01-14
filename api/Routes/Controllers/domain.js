@@ -688,3 +688,39 @@ exports.changeDomainStatus = async (req, res) => {
     });
   }
 };
+
+
+exports.deleteDomain = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+
+    if (!domainId) {
+      return res.status(400).json({
+        success: false,
+        message: "domainId is required",
+      });
+    }
+
+    const domain = await domainSchema.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+
+    await domainSchema.findByIdAndDelete(domainId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Domain deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteDomain error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

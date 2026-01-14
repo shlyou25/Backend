@@ -25,6 +25,7 @@ router.delete('/:domainId/priority',authenticate,isAdmin,domainController.remove
 router.post('/promote',authenticate,isAdmin,domainController.promoteDomain);
 router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.removeDomainPriority);
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);
+router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.deleteDomain);
 
 
 
