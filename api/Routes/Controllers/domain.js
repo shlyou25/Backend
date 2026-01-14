@@ -630,3 +630,61 @@ exports.getPromotedDomains = async (req, res) => {
     });
   }
 };
+
+
+
+exports.changeDomainStatus = async (req, res) => {
+  try {
+    const { domainId, status } = req.body;
+
+    if (!domainId || !status) {
+      return res.status(400).json({
+        success: false,
+        message: "domainId and status are required",
+      });
+    }
+    
+    const ALLOWED_STATUSES = ["Pass", "Fail", "Manual Review"];
+
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value",
+      });
+    }
+    const domain = await domainSchema.findById(domainId);
+
+    if (!domain) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+    if (domain.status === status) {
+      return res.status(200).json({
+        success: true,
+        message: "Status already up to date",
+        data: domain,
+      });
+    }
+    domain.status = status;
+
+    await domain.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Domain status updated successfully",
+      data: {
+        domainId: domain._id,
+        status: domain.status,
+      },
+    });
+  } catch (error) {
+    console.error("changeDomainStatus error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
