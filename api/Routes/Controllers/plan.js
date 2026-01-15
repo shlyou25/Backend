@@ -8,27 +8,21 @@ const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 exports.getplansbyuser = async (req, res) => {
   try {
     const userId = req.user.id;
-    const userWithPlans = await userSchema
-      .findById(userId)
-      .populate({
-        path: "plans",
-        select: 'title price per feature startDate endingDate -_id'
-      })
-      .exec();
+    const plans = await Plan.find({ userId })
+      .select("title price per feature startDate endingDate status durationInMonths")
+      .sort({ createdAt: -1 })
+      .lean();
 
-    if (!userWithPlans) {
-      return res.status(404).json({ status: false, message: 'User not found' });
-    }
-    res.status(200).json({
+    return res.status(200).json({
       status: true,
-      plans: userWithPlans.plans,
-      message: 'Plans fetched successfully'
+      plans,
+      message: "Plans fetched successfully"
     });
 
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: false,
-      message: 'Error fetching plans',
+      message: "Error fetching plans",
       error: error.message
     });
   }
