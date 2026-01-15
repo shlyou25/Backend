@@ -10,6 +10,11 @@ const planRequestSchema = new mongoose.Schema({
   price: Number,
   per: String,
   featureLimit: Number,
+  type: {
+  type: String,
+  enum: ["NEW", "UPGRADE"],
+  default: "NEW"
+},
   status: {
     type: String,
     enum: ["Pending", "Approved", "Rejected"],

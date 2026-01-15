@@ -111,7 +111,7 @@ exports.approvePlanAdmin = async (req, res) => {
       });
     }
 
-    // Validate plan name only
+    // Validate plan title
     const { error } = selectPlanSchema.validate({ title });
     if (error) {
       return res.status(400).json({
@@ -119,7 +119,7 @@ exports.approvePlanAdmin = async (req, res) => {
       });
     }
 
-    // Find allowed plan
+    // Find selected plan
     const selectedPlan = packages.find(p => p.title === title);
     if (!selectedPlan) {
       return res.status(400).json({
@@ -127,32 +127,58 @@ exports.approvePlanAdmin = async (req, res) => {
       });
     }
 
-    // Prevent overlapping active plan
-    const existing = await PlanSchema.findOne({ userId })
-      .sort({ createdAt: -1 });
+    // Helper: plan rank from package order
+    const getPlanRank = (planTitle) =>
+      packages.findIndex(p => p.title === planTitle);
 
-    if (existing && existing.endingDate > new Date()) {
-      return res.status(400).json({
-        message: "User already has an active plan"
-      });
+    // Find active plan (if any)
+    const existingPlan = await PlanSchema.findOne({
+      userId,
+      status: "active",
+      endingDate: { $gt: new Date() }
+    }).sort({ createdAt: -1 });
+
+    // 🔁 Handle upgrade logic
+    if (existingPlan) {
+      const currentRank = getPlanRank(existingPlan.title);
+      const newRank = getPlanRank(title);
+
+      if (currentRank === -1 || newRank === -1) {
+        return res.status(400).json({
+          message: "Plan configuration error"
+        });
+      }
+
+      // Block downgrade or same plan
+      if (newRank <= currentRank) {
+        return res.status(400).json({
+          message: "Only higher plan upgrades are allowed"
+        });
+      }
+
+      // Expire current plan
+      existingPlan.status = "expired";
+      existingPlan.endingDate = new Date();
+      await existingPlan.save();
     }
 
-    // 🔥 SERVER-CONTROLLED DURATION
+    // 📅 SERVER-CONTROLLED DURATION
     const startDate = new Date();
-    const durationInMonths = 1; // ← RULE
+    const durationInMonths = 1;
     const endingDate = new Date(startDate);
     endingDate.setMonth(startDate.getMonth() + durationInMonths);
 
-    // Create plan
+    // Create new active plan
     const newPlan = await PlanSchema.create({
       userId,
       title: selectedPlan.title,
       price: selectedPlan.price,
       per: selectedPlan.per,
       feature: selectedPlan.feature,
-      durationInMonths,        // required by schema
+      durationInMonths,
       startDate,
-      endingDate
+      endingDate,
+      status: "active"
     });
 
     // Attach to user
@@ -160,24 +186,33 @@ exports.approvePlanAdmin = async (req, res) => {
       $push: { plans: newPlan._id }
     });
 
-    // Approve matching plan request
+    // Approve plan request
     await PlanRequest.findOneAndUpdate(
-      { userId, planTitle: title, status: "Pending" },
-      { status: "Approved" }
+      {
+        userId,
+        planTitle: title,
+        status: "Pending"
+      },
+      {
+        status: "Approved"
+      }
     );
 
     return res.status(201).json({
-      message: "Plan activated for 1 month",
+      message: existingPlan
+        ? "Plan upgraded successfully"
+        : "Plan activated successfully",
       plan: newPlan
     });
 
   } catch (error) {
-    console.error("Add plan error:", error);
+    console.error("Approve plan error:", error);
     return res.status(500).json({
       message: "Internal server error"
     });
   }
 };
+
 
 exports.rejectPlanRequest = async (req, res) => {
   try {
@@ -219,6 +254,84 @@ exports.rejectPlanRequest = async (req, res) => {
   }
 };
 
+exports.upgradePlanRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { planTitle } = req.body;
+
+    if (!planTitle) {
+      return res.status(400).json({
+        status: false,
+        message: "Plan is required"
+      });
+    }
+
+    const selectedPlan = packages.find(p => p.title === planTitle);
+    if (!selectedPlan) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid plan selected"
+      });
+    }
+
+    // ✅ Must have active plan
+    const activePlan = await PlanSchema.findOne({
+      userId,
+      endingDate: { $gt: new Date() },
+      status: "active"
+    });
+
+    if (!activePlan) {
+      return res.status(403).json({
+        status: false,
+        message: "You must have an active plan to upgrade"
+      });
+    }
+
+    // ❌ Prevent downgrade
+    if (selectedPlan.feature <= activePlan.feature) {
+      return res.status(400).json({
+        status: false,
+        message: "You can only upgrade to a higher plan"
+      });
+    }
+
+    // ❌ Only one pending request
+    const existingRequest = await planRequestSchema.findOne({
+      userId,
+      status: "Pending"
+    });
+
+    if (existingRequest) {
+      return res.status(409).json({
+        status: false,
+        message: "You already have a pending plan request"
+      });
+    }
+
+    await planRequestSchema.create({
+      userId,
+      planTitle: selectedPlan.title,
+      price: selectedPlan.price,
+      per: selectedPlan.per,
+      featureLimit: selectedPlan.feature,
+      type: "UPGRADE",              // ⭐ IMPORTANT
+      status: "Pending"
+    });
+
+    return res.status(201).json({
+      status: true,
+      message: "Upgrade request submitted successfully"
+    });
+
+  } catch (error) {
+    console.error("Upgrade request error:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Failed to submit upgrade request"
+    });
+  }
+};
 
 
 exports.deleterequest = async (req, res) => {

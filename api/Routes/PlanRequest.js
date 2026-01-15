@@ -4,6 +4,7 @@ const {authenticate,isAdmin} = require('../middlewares/authenticate');
 const planRequestController=require('../Routes/Controllers/PlanRequest')
 
 router.post('/addplanrequest',authenticate, planRequestController.planRequest);
+router.post('/upgreadplan',authenticate, planRequestController.upgradePlanRequest);
 
 //admin
 router.get('/getallplanrequest',authenticate,isAdmin,planRequestController.getAllPlanRequests);

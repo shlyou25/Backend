@@ -1,9 +1,7 @@
 const userSchema = require('../../../models/user');
 const Plan = require("../../../models/packages");
-const { packages,adminPlanSchema,editPlanSchema } = require("../../middlewares/PackagePlan");
+const { packages, adminPlanSchema, editPlanSchema } = require("../../middlewares/PackagePlan");
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
-
-
 
 exports.getplansbyuser = async (req, res) => {
   try {
@@ -91,30 +89,33 @@ exports.addPlan = async (req, res) => {
 };
 
 
-
 exports.getAllPlans = async (req, res) => {
   try {
-    const plans = await Plan.find()
-      .populate({
-        path: "userId",
-        match: { role: "user" },
-        select: "email name role"
-      })
-      .sort({ createdAt: -1 })
-      .lean();
+    const plans = await Plan.aggregate([
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$userId",
+          latestPlan: { $first: "$$ROOT" }
+        }
+      },
+      { $replaceRoot: { newRoot: "$latestPlan" } }
+    ]);
 
-    const filteredPlans = plans.filter(p => p.userId);
-
-    return res.status(200).json({
-      success: true,
-      count: filteredPlans.length,
-      plans: filteredPlans
+    await Plan.populate(plans, {
+      path: "userId",
+      select: "email name phoneNumber"
     });
-  } catch (error) {
-    console.error("Error getting plans", error);
-    return res.status(500).json({
+
+    res.json({
+      success: true,
+      count: plans.length,
+      plans
+    });
+  } catch (err) {
+    res.status(500).json({
       success: false,
-      message: "Failed to fetch plans"
+      message: "Failed to fetch active plans"
     });
   }
 };
@@ -179,8 +180,6 @@ exports.adminAssignPlan = async (req, res) => {
     });
   }
 };
-
-
 
 exports.adminEditPlan = async (req, res) => {
   try {

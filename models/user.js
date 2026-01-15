@@ -68,11 +68,16 @@ const userSchema = new mongoose.Schema(
     adminOtpExpires: {
       type: Date
     },
-    isActive:{
-        type:Boolean,
-        default:false,
+    isActive: {
+      type: Boolean,
+      default: false,
     },
-    
+    // User schema (ADD THIS)
+    featureBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     plans: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Plan" }
     ]
