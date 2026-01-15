@@ -9,19 +9,19 @@ router.patch('/:id/toggle-hide',authenticate,domainController.toggleHide);
 router.patch('/:id/toggle-chat',authenticate,domainController.toggleChat);
 router.delete('/:id',authenticate,domainController.deleteDomain);
 
-router.get("/public", domainController.getHiddenDomains);
+router.get("/public", domainController.getHiddenDomains); 
 router.get("/promoted", domainController.getPromotedDomains);
 
 
-
 router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);
+router.get('/getallpromoteddomain',authenticate,isAdmin,domainController.getAllPromotedDomains);
 
 
 
 // DOMAIN PRIORITY & PROMOTION (ADMIN ONLY)
 
 router.put('/:domainId/priority',authenticate,isAdmin,domainController.updateDomainPriority);
-router.delete('/:domainId/priority',authenticate,isAdmin,domainController.removeDomainPriority);
+router.delete('/promoted/:domainId',authenticate,isAdmin,domainController.removeDomainPriority);
 router.post('/promote',authenticate,isAdmin,domainController.promoteDomain);
 router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.removeDomainPriority);
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);

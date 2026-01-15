@@ -414,7 +414,6 @@ exports.getHiddenDomains = async (req, res) => {
       .lean();
 
     const total = await domainSchema.countDocuments(filter);
-
     const domains = domainsEncrypted.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
@@ -620,6 +619,79 @@ exports.getPromotedDomains = async (req, res) => {
     return res.status(200).json({
       success: true,
       domains: promotedDomains
+    });
+
+  } catch (error) {
+    console.error("Get promoted domains error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch promoted domains"
+    });
+  }
+};
+
+exports.getAllDomains = async (req, res) => {
+  try {
+    const domainsRaw = await domainSchema
+      .find({})
+      .sort({
+        isPromoted: -1,           // promoted first
+        promotionPriority: 1,     // lower priority number first
+        createdAt: -1             // fallback order
+      })
+      .select("_id domain promotionPriority isPromoted status finalUrl")
+      .lean();
+
+    const domains = domainsRaw.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      isPromoted: d.isPromoted,
+      priority: d.promotionPriority ?? null,
+      status: d.status,
+      finalUrl: d.finalUrl
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: domains.length,
+      domains
+    });
+
+  } catch (error) {
+    console.error("Get all domains error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch domains"
+    });
+  }
+};
+
+exports.getAllPromotedDomains = async (req, res) => {
+  try {
+    const domainsRaw = await domainSchema
+      .find({
+        isPromoted: true,
+        promotionPriority: { $ne: null }
+      })
+      .sort({
+        promotionPriority: 1,   // lowest number = highest priority
+        createdAt: -1
+      })
+      .select("_id domain promotionPriority status finalUrl")
+      .lean();
+
+    const domains = domainsRaw.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      priority: d.promotionPriority,
+      status: d.status,
+      finalUrl: d.finalUrl
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: domains.length,
+      domains
     });
 
   } catch (error) {
