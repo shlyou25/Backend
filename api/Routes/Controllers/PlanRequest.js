@@ -1,5 +1,5 @@
 const planRequestSchema = require('../../../models/planRequestSchema')
-const userSchema =require('../../../models/user')
+const userSchema = require('../../../models/user')
 const PlanSchema = require('../../../models/packages')
 const { packages } = require('../../middlewares/PackagePlan')
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
@@ -189,8 +189,6 @@ exports.rejectPlanRequest = async (req, res) => {
         message: "userId and planTitle are required"
       });
     }
-
-    // Find pending request
     const request = await planRequestSchema.findOne({
       userId,
       planTitle,
@@ -203,7 +201,6 @@ exports.rejectPlanRequest = async (req, res) => {
         message: "No pending plan request found"
       });
     }
-    // Reject it
     request.status = "Rejected";
     await request.save();
 
@@ -221,3 +218,37 @@ exports.rejectPlanRequest = async (req, res) => {
     });
   }
 };
+
+
+
+exports.deleterequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Id Required"
+      })
+    }
+    const request = await planRequestSchema.findById(id);
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request Not Found",
+      })
+    }
+    await planRequestSchema.findByIdAndDelete(id);
+    return res.status(200).json({
+      success: true,
+      message: "Plan Request Deleted Successfully"
+    })
+  }
+  catch (error) {
+    console.error("deleteDomain error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+}
