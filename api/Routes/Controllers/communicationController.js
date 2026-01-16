@@ -1,24 +1,64 @@
 const Domain = require("../../../models/domain");
-const { decryptData } = require("../../middlewares/crypto");
-const {sendEmail} = require('../../utils/sendEmail')
-
+const Communication = require("../../../models/Communication");
+const crypto = require("crypto");
 
 exports.sendEmailToSeller = async (req, res) => {
-  const { domainId, buyerEmail, subject, message } = req.body;
+  try {
+    const { domainId, buyerEmail } = req.body;
+    if (!domainId || !buyerEmail) {
+      return res.status(400).json({
+        message: "domainId and buyerEmail are required"
+      });
+    }
 
-  const domain = await Domain.findById(domainId).populate("userId");
-  if (!domain) return res.status(404).json({ message: "Domain not found" });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+      return res.status(400).json({
+        message: "Invalid email address"
+      });
+    }
+    const domain = await Domain.findById(domainId).populate("userId");
+    if (!domain) {
+      return res.status(404).json({ message: "Domain not found" });
+    }
 
-  await sendEmail({
-    to: domain.userId.email, // 🔒 hidden from buyer
-    subject,
-    html: `
-      <p><strong>Buyer Email:</strong> ${buyerEmail}</p>
-      <p><strong>Domain:</strong> ${decryptData(domain.domain)}</p>
-      <hr/>
-      <p>${message}</p>
-    `
-  });
+    if (!domain.isChatActive) {
+      return res.status(403).json({
+        message: "Chat is disabled for this domain"
+      });
+    }
 
-  return res.json({ success: true });
+    const sellerEmail = domain.userId.email;
+    const threadId = crypto
+      .createHash("sha256")
+      .update(`${domainId}:${buyerEmail}`)
+      .digest("hex")
+      .slice(0, 12);
+
+    const buyerProxy = `buyer-${threadId}@proxy.yourdomain.com`;
+    const sellerProxy = `seller-${threadId}@proxy.yourdomain.com`;
+
+    await Communication.findOneAndUpdate(
+      { domainId, buyerEmail },
+      {
+        domainId,
+        buyerEmail,
+        sellerEmail,
+        buyerProxy,
+        sellerProxy,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.json({
+      success: true,
+      proxyEmail: sellerProxy
+    });
+  } catch (err) {
+    console.error("sendEmailToSeller error:", err);
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+  }
 };

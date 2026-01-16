@@ -2,16 +2,23 @@ const Faq=require('../../../models/faq')
 
 exports.createFaq = async (req, res) => {
   try {
-    const { question, answer, priorityNumber } = req.body;
+    const { question, answer, category, priorityNumber } = req.body;
 
-    if (!question || !answer || priorityNumber === undefined) {
+    if (!question || !answer || !category || priorityNumber === undefined) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
 
-    // 🔒 Check duplicate priority
+    const validCategories = ["Sell", "Buy", "Plans", "Security"];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category",
+      });
+    }
+
     const existingPriority = await Faq.findOne({ priorityNumber });
     if (existingPriority) {
       return res.status(409).json({
@@ -20,16 +27,18 @@ exports.createFaq = async (req, res) => {
       });
     }
 
-    const faq = await Faq.create({
+    await Faq.create({
       question,
       answer,
+      category,
       priorityNumber,
     });
 
     return res.status(201).json({
       success: true,
-      message:"FAQ Added"
+      message: "FAQ Added Successfully",
     });
+
   } catch (error) {
     console.error("Create FAQ error:", error.message);
     return res.status(500).json({
@@ -42,7 +51,7 @@ exports.createFaq = async (req, res) => {
 exports.getAllFaqs = async (req, res) => {
   try {
     const faqs = await Faq.find()
-      .select('question answer priorityNumber')
+      .select('question answer priorityNumber category')
       .sort({ priorityNumber: 1 })
       .lean();
     return res.status(200).json({
@@ -60,7 +69,7 @@ exports.getAllFaqs = async (req, res) => {
 
 exports.updateFaq = async (req, res) => {
   try {
-    const { id,question, answer, priorityNumber } = req.body;
+    const { id,question, answer, priorityNumber ,category} = req.body;
 
     // 🔒 Check priority conflict
     if (priorityNumber !== undefined) {
@@ -79,7 +88,7 @@ exports.updateFaq = async (req, res) => {
 
     const updatedFaq = await Faq.findByIdAndUpdate(
       id,
-      { question, answer, priorityNumber },
+      { question, answer, priorityNumber,category },
       { new: true, runValidators: true }
     );
 
