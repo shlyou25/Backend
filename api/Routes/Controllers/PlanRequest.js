@@ -104,7 +104,7 @@ exports.getAllPlanRequests = async (req, res) => {
 exports.approvePlanAdmin = async (req, res) => {
   try {
     const { userId, title } = req.body;
-
+   
     if (!userId || !title) {
       return res.status(400).json({
         message: "userId and plan title are required"
@@ -113,12 +113,13 @@ exports.approvePlanAdmin = async (req, res) => {
 
     // Validate plan title
     const { error } = selectPlanSchema.validate({ title });
+    
     if (error) {
       return res.status(400).json({
         message: error.details[0].message
       });
     }
-
+    
     // Find selected plan
     const selectedPlan = packages.find(p => p.title === title);
     if (!selectedPlan) {
@@ -129,7 +130,7 @@ exports.approvePlanAdmin = async (req, res) => {
 
     // Helper: plan rank from package order
     const getPlanRank = (planTitle) =>
-      packages.findIndex(p => p.title === planTitle);
+    packages.findIndex(p => p.title === planTitle);
 
     // Find active plan (if any)
     const existingPlan = await PlanSchema.findOne({
@@ -137,7 +138,7 @@ exports.approvePlanAdmin = async (req, res) => {
       status: "active",
       endingDate: { $gt: new Date() }
     }).sort({ createdAt: -1 });
-
+   
     // 🔁 Handle upgrade logic
     if (existingPlan) {
       const currentRank = getPlanRank(existingPlan.title);
@@ -148,26 +149,29 @@ exports.approvePlanAdmin = async (req, res) => {
           message: "Plan configuration error"
         });
       }
-
+  
       // Block downgrade or same plan
       if (newRank <= currentRank) {
         return res.status(400).json({
           message: "Only higher plan upgrades are allowed"
         });
       }
-
+     console.log("Up");
+     
       // Expire current plan
       existingPlan.status = "expired";
       existingPlan.endingDate = new Date();
       await existingPlan.save();
     }
-
+    console.log("down");
+    
     // 📅 SERVER-CONTROLLED DURATION
     const startDate = new Date();
     const durationInMonths = 1;
     const endingDate = new Date(startDate);
     endingDate.setMonth(startDate.getMonth() + durationInMonths);
 
+   
     // Create new active plan
     const newPlan = await PlanSchema.create({
       userId,
@@ -175,7 +179,7 @@ exports.approvePlanAdmin = async (req, res) => {
       price: selectedPlan.price,
       per: selectedPlan.per,
       feature: selectedPlan.feature,
-      durationInMonths,
+      durationInMonths:1,
       startDate,
       endingDate,
       status: "active"

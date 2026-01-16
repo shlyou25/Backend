@@ -53,7 +53,8 @@ const planSchema = new mongoose.Schema(
     durationInMonths: {
       type: Number,
       required: true,
-      min: 1
+      min: 1,
+      default: 1
     }
 
   },
