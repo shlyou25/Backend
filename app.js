@@ -1,8 +1,6 @@
 require('dotenv').config();
-
 const express = require('express');
 const morgan = require('morgan');
-const mongoose = require('mongoose');
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 
@@ -33,18 +31,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// DB connection
-mongoose.connect(process.env.ConnectionString, {
-  dbName: 'AccessAnanlyser'
-})
-.then(async () => {
-  console.log('Connected to Database');
-  await require('./api/utils/createAdmin').createAdmin();
-})
-.catch(err => {
-  console.error("DB connection failed:", err);
-  process.exit(1);
-});
+
 
 // routes
 app.use('/api/auth', authRoutes);

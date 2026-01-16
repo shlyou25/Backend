@@ -153,7 +153,7 @@ exports.adddomain = async (req, res) => {
 
     // 🔹 Call external domain check API
     const apiResponse = await axios.post(
-      "https://6af88f6558d8.ngrok-free.app/check_domains",
+      "https://7ac58b89f4cc.ngrok-free.app/check_domains",
       { domains }
     );
 
@@ -187,7 +187,7 @@ You can add only ${allowedDomains - existingCount} more.`,
       });
     }
     // 🔹 Insert Pass + Manual Review
-    const docs = [...passDomains, ...manualDomains,...failedDomains].map(d => ({
+    const docs = [...passDomains, ...manualDomains, ...failedDomains].map(d => ({
       domain: encryptData(d.domain),
       userId,
       status: d.status,
@@ -222,7 +222,7 @@ exports.getdomainbyuserid = async (req, res) => {
   try {
     const userId = req.user.id;
     const domainsEncrypted = await domainSchema
-      .find({ userId})
+      .find({ userId })
       .select("_id domain isChatActive isHidden createdAt finalUrl status")
       .sort({ createdAt: -1 })
       .lean();
@@ -230,11 +230,11 @@ exports.getdomainbyuserid = async (req, res) => {
     const domains = domainsEncrypted.map(d => ({
       id: d._id,
       domain: decryptData(d.domain),
-      status:d.status,
+      status: d.status,
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
       createdAt: d.createdAt,
-      finalUrl:d.finalUrl
+      finalUrl: d.finalUrl
     }));
 
     res.status(200).json({
@@ -252,31 +252,32 @@ exports.getdomainbyuserid = async (req, res) => {
 };
 
 exports.getAllDomains = async (req, res) => {
+
   try {
     const domainsRaw = await domainSchema
       .find()
       .populate({
         path: "userId",
-        match: { role: "user" },
-        select: "name email role"
+        select: "name email role" // ❌ remove match
       })
       .sort({ createdAt: -1 })
       .lean();
 
-    // ⚠️ Remove domains whose owner was filtered out
-    const filtered = domainsRaw.filter(d => d.userId);
-
-    // 🔢 Count manual review domains
-    const manualReviewCount = filtered.filter(
+    // 🔢 COUNT FROM RAW DATA
+    const manualReviewCount = domainsRaw.filter(
       d => d.status === "Manual Review"
     ).length;
+    // ⚠️ FILTER ONLY FOR RESPONSE
+    const filtered = domainsRaw.filter(
+      d => d.userId && d.userId.role === "user"
+    );
 
-    // 🔄 Map final response
     const domains = filtered.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
       status: d.status,
       finalUrl: d.finalUrl || null,
+      promotedNumber: d.isPromoted ? d.promotionPriority : null,
       createdAt: d.createdAt,
       owner: {
         name: d.userId.name,
@@ -287,18 +288,19 @@ exports.getAllDomains = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: domains.length,
-      manualReviewCount,      // ✅ ADDED
+      manualReviewCount,
       domains
     });
 
   } catch (error) {
-    console.error("Get domains error:", error.message);
+    console.error("Get domains error:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch domains"
     });
   }
 };
+
 
 exports.toggleHide = async (req, res) => {
   const { id } = req.params;
@@ -445,7 +447,7 @@ exports.getHiddenDomains = async (req, res) => {
 
 exports.promoteDomain = async (req, res) => {
   try {
-    const {domainId,priority}=req.body
+    const { domainId, priority } = req.body
 
     if (typeof priority !== "number" || priority <= 0) {
       return res.status(400).json({
@@ -483,7 +485,7 @@ exports.promoteDomain = async (req, res) => {
 
     return res.status(200).json({
       message: "Domain promoted successfully",
-      status:true
+      status: true
     });
 
   } catch (error) {
@@ -630,41 +632,41 @@ exports.getPromotedDomains = async (req, res) => {
   }
 };
 
-exports.getAllDomains = async (req, res) => {
-  try {
-    const domainsRaw = await domainSchema
-      .find({})
-      .sort({
-        isPromoted: -1,           // promoted first
-        promotionPriority: 1,     // lower priority number first
-        createdAt: -1             // fallback order
-      })
-      .select("_id domain promotionPriority isPromoted status finalUrl")
-      .lean();
+// exports.getAllDomains = async (req, res) => {
+//   try {
+//     const domainsRaw = await domainSchema
+//       .find({})
+//       .sort({
+//         isPromoted: -1,           // promoted first
+//         promotionPriority: 1,     // lower priority number first
+//         createdAt: -1             // fallback order
+//       })
+//       .select("_id domain promotionPriority isPromoted status finalUrl")
+//       .lean();
 
-    const domains = domainsRaw.map(d => ({
-      domainId: d._id,
-      domain: decryptData(d.domain),
-      isPromoted: d.isPromoted,
-      priority: d.promotionPriority ?? null,
-      status: d.status,
-      finalUrl: d.finalUrl
-    }));
+//     const domains = domainsRaw.map(d => ({
+//       domainId: d._id,
+//       domain: decryptData(d.domain),
+//       isPromoted: d.isPromoted,
+//       priority: d.promotionPriority ?? null,
+//       status: d.status,
+//       finalUrl: d.finalUrl
+//     }));
 
-    return res.status(200).json({
-      success: true,
-      count: domains.length,
-      domains
-    });
+//     return res.status(200).json({
+//       success: true,
+//       count: domains.length,
+//       domains
+//     });
 
-  } catch (error) {
-    console.error("Get all domains error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch domains"
-    });
-  }
-};
+//   } catch (error) {
+//     console.error("Get all domains error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch domains"
+//     });
+//   }
+// };
 
 exports.getAllPromotedDomains = async (req, res) => {
   try {
@@ -715,7 +717,7 @@ exports.changeDomainStatus = async (req, res) => {
         message: "domainId and status are required",
       });
     }
-    
+
     const ALLOWED_STATUSES = ["Pass", "Fail", "Manual Review"];
 
     if (!ALLOWED_STATUSES.includes(status)) {
