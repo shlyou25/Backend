@@ -7,23 +7,19 @@ exports.createFaq = async (req, res) => {
     if (!question || !answer || !category || priorityNumber === undefined) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "All fields are required"
       });
     }
 
-    const validCategories = ["Sell", "Buy", "Plans", "Security"];
-    if (!validCategories.includes(category)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid category",
-      });
-    }
+    const conflict = await Faq.findOne({
+      category,
+      priorityNumber
+    });
 
-    const existingPriority = await Faq.findOne({ priorityNumber });
-    if (existingPriority) {
+    if (conflict) {
       return res.status(409).json({
         success: false,
-        message: "FAQ with this priority already exists",
+        message: `Priority ${priorityNumber} already exists in ${category}`
       });
     }
 
@@ -31,86 +27,90 @@ exports.createFaq = async (req, res) => {
       question,
       answer,
       category,
-      priorityNumber,
+      priorityNumber
     });
 
     return res.status(201).json({
       success: true,
-      message: "FAQ Added Successfully",
+      message: "FAQ added successfully"
     });
 
   } catch (error) {
-    console.error("Create FAQ error:", error.message);
+    console.error("Create FAQ error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to create FAQ",
+      message: "Failed to create FAQ"
     });
   }
 };
 
+
 exports.getAllFaqs = async (req, res) => {
   try {
     const faqs = await Faq.find()
-      .select('question answer priorityNumber category')
-      .sort({ priorityNumber: 1 })
+      .select("question answer category priorityNumber")
+      .sort({ category: 1, priorityNumber: 1 }) // ✅ category-wise
       .lean();
+
     return res.status(200).json({
       success: true,
-      faqs,
+      faqs
     });
   } catch (error) {
-    console.error("Get FAQs error:", error.message);
+    console.error("Get FAQs error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch FAQs",
+      message: "Failed to fetch FAQs"
     });
   }
 };
 
 exports.updateFaq = async (req, res) => {
   try {
-    const { id,question, answer, priorityNumber ,category} = req.body;
+    const { id, question, answer, category, priorityNumber } = req.body;
 
-    // 🔒 Check priority conflict
-    if (priorityNumber !== undefined) {
+    if (priorityNumber !== undefined && category) {
       const conflict = await Faq.findOne({
+        category,
         priorityNumber,
-        _id: { $ne: id },
+        _id: { $ne: id }
       });
 
       if (conflict) {
         return res.status(409).json({
           success: false,
-          message: "Another FAQ already uses this priority",
+          message: `Priority ${priorityNumber} already used in ${category}`
         });
       }
     }
 
     const updatedFaq = await Faq.findByIdAndUpdate(
       id,
-      { question, answer, priorityNumber,category },
+      { question, answer, category, priorityNumber },
       { new: true, runValidators: true }
     );
 
     if (!updatedFaq) {
       return res.status(404).json({
         success: false,
-        message: "FAQ not found",
+        message: "FAQ not found"
       });
     }
 
     return res.status(200).json({
       success: true,
-      faq: updatedFaq,
+      faq: updatedFaq
     });
+
   } catch (error) {
-    console.error("Update FAQ error:", error.message);
+    console.error("Update FAQ error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to update FAQ",
+      message: "Failed to update FAQ"
     });
   }
 };
+
 exports.deleteFaq = async (req, res) => {
   try {
     const { id } = req.params;
@@ -120,19 +120,21 @@ exports.deleteFaq = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({
         success: false,
-        message: "FAQ not found",
+        message: "FAQ not found"
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "FAQ deleted successfully",
+      message: "FAQ deleted successfully"
     });
+
   } catch (error) {
-    console.error("Delete FAQ error:", error.message);
+    console.error("Delete FAQ error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to delete FAQ",
+      message: "Failed to delete FAQ"
     });
   }
 };
+
