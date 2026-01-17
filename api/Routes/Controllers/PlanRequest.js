@@ -156,15 +156,12 @@ exports.approvePlanAdmin = async (req, res) => {
           message: "Only higher plan upgrades are allowed"
         });
       }
-     console.log("Up");
      
       // Expire current plan
       existingPlan.status = "expired";
       existingPlan.endingDate = new Date();
       await existingPlan.save();
-    }
-    console.log("down");
-    
+    }    
     // 📅 SERVER-CONTROLLED DURATION
     const startDate = new Date();
     const durationInMonths = 1;

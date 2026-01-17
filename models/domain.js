@@ -47,5 +47,18 @@ const domainSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+/**
+ * ✅ UNIQUE ONLY WHEN isPromoted = true
+ */
+domainSchema.index(
+  { promotionPriority: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      isPromoted: true,
+      promotionPriority: { $exists: true }
+    }
+  }
+);
 
 module.exports = mongoose.model("Domain", domainSchema);
