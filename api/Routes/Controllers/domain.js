@@ -689,7 +689,7 @@ exports.getAllPromotedDomains = async (req, res) => {
 
 exports.changeDomainStatus = async (req, res) => {
   try {
-    const { domainId, status } = req.body;
+    const { domainId, status, finalUrl } = req.body;
 
     if (!domainId || !status) {
       return res.status(400).json({
@@ -706,6 +706,7 @@ exports.changeDomainStatus = async (req, res) => {
         message: "Invalid status value",
       });
     }
+
     const domain = await domainSchema.findById(domainId);
 
     if (!domain) {
@@ -714,6 +715,8 @@ exports.changeDomainStatus = async (req, res) => {
         message: "Domain not found",
       });
     }
+
+    // No-op safeguard
     if (domain.status === status) {
       return res.status(200).json({
         success: true,
@@ -721,8 +724,41 @@ exports.changeDomainStatus = async (req, res) => {
         data: domain,
       });
     }
-    domain.status = status;
 
+    /**
+     * 🔒 RULE:
+     * ANY → Pass requires finalUrl
+     */
+    if (status === "Pass") {
+      if (!finalUrl || typeof finalUrl !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Final URL is required when marking domain as Pass",
+        });
+      }
+
+      // URL validation
+      try {
+        new URL(finalUrl);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid final URL format",
+        });
+      }
+
+      domain.finalUrl = finalUrl;
+    }
+
+    /**
+     * Optional cleanup:
+     * Clear finalUrl if moving away from Pass
+     */
+    if (domain.status === "Pass" && status !== "Pass") {
+      domain.finalUrl = null;
+    }
+
+    domain.status = status;
     await domain.save();
 
     return res.status(200).json({
@@ -731,8 +767,10 @@ exports.changeDomainStatus = async (req, res) => {
       data: {
         domainId: domain._id,
         status: domain.status,
+        finalUrl: domain.finalUrl,
       },
     });
+
   } catch (error) {
     console.error("changeDomainStatus error:", error);
 
@@ -742,6 +780,7 @@ exports.changeDomainStatus = async (req, res) => {
     });
   }
 };
+
 
 
 exports.deleteDomain = async (req, res) => {
