@@ -399,22 +399,30 @@ exports.deleteDomain = async (req, res) => {
 
 exports.getHiddenDomains = async (req, res) => {
   try {
+    const MAX_ALL_LIMIT = 3000;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const fetchAll = req.query.all === 'true';
 
+    const skip = (page - 1) * limit;
     const filter = { isHidden: false, status: "Pass" };
 
-    const domainsEncrypted = await domainSchema
+    let query = domainSchema
       .find(filter)
-      .select("_id domain isChatActive finalUrl userId createdAt") // ✅ ADD finalUrl
+      .select("_id domain isChatActive finalUrl userId createdAt")
       .populate("userId", "name")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+      .sort({ createdAt: -1 });
 
+    // ✅ SAFE ALL MODE
+    if (fetchAll) {
+      query = query.limit(MAX_ALL_LIMIT);
+    } else {
+      query = query.skip(skip).limit(limit);
+    }
+
+    const domainsEncrypted = await query.lean();
     const total = await domainSchema.countDocuments(filter);
+
     const domains = domainsEncrypted.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
@@ -422,7 +430,7 @@ exports.getHiddenDomains = async (req, res) => {
         name: d.userId?.name || "Anonymous"
       },
       isChatActive: d.isChatActive,
-      finalUrl: d.finalUrl || null // ✅ SAFE RETURN
+      finalUrl: d.finalUrl || null
     }));
 
     return res.status(200).json({
@@ -430,7 +438,9 @@ exports.getHiddenDomains = async (req, res) => {
       domains,
       total,
       page,
-      totalPages: Math.ceil(total / limit)
+      totalPages: fetchAll ? 1 : Math.ceil(total / limit),
+      capped: fetchAll && total > MAX_ALL_LIMIT,
+      capLimit: MAX_ALL_LIMIT
     });
 
   } catch (error) {

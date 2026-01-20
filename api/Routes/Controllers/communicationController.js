@@ -34,11 +34,13 @@ exports.sendEmailToSeller = async (req, res) => {
       .digest("hex")
       .slice(0, 12);
 
-    const buyerProxy = `buyer-${threadId}@proxy.yourdomain.com`;
-    const sellerProxy = `seller-${threadId}@proxy.yourdomain.com`;
+    const PROXY_DOMAIN = process.env.PROXY_DOMAIN;
+    const buyerProxy = `buyer-${threadId}@${PROXY_DOMAIN}`;
+    const sellerProxy = `seller-${threadId}@${PROXY_DOMAIN}`;
+
 
     await Communication.findOneAndUpdate(
-      { domainId, buyerEmail },
+      { domainId, buyerEmail, isActive: true },
       {
         domainId,
         buyerEmail,
