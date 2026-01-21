@@ -153,7 +153,7 @@ exports.adddomain = async (req, res) => {
 
     // 🔹 Call external domain check API
     const apiResponse = await axios.post(
-      "https://7ac58b89f4cc.ngrok-free.app/check_domains",
+      "https://73ce4adc511e.ngrok-free.app/check_domains",
       { domains }
     );
 
