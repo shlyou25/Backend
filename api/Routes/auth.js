@@ -5,6 +5,7 @@ const authController = require("./Controllers/auth");
 const authenticate = require("./Controllers/authenticate");
 const passwordChangeAuth = require('../middlewares/passwordChangeAuth')
 const checkAuth =require('../middlewares/authenticate')
+const {verifyEmailToken} = require('../middlewares/verifyEmailToken')
 
 
 
@@ -27,7 +28,8 @@ router.post("/verify-forgot-otp", authController.verifyForgotOtp);
 
 router.post("/resend-email-otp", authController.resendEmailOtp);
 
-router.post("/verify-email", authController.verifyEmailOtp);
+
+router.post("/verify-email", verifyEmailToken, authController.verifyEmailOtp);
 
 router.post("/admin/verify-otp", authController.verifyAdminOtp);
 

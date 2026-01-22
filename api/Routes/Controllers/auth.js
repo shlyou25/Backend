@@ -65,12 +65,13 @@ exports.register = async (req, res) => {
       to: normalizedEmail,
       subject: "Verify your email",
       html: `
-        <h2>Email Verification</h2>
-        <p>Your verification code:</p>
-        <h1>${otp}</h1>
-        <p>This code expires in 5 minutes.</p>
-      `
+    <h2>Email Verification</h2>
+    <p>Your verification code:</p>
+    <h1>${otp}</h1>
+    <p>This code expires in 5 minutes.</p>
+  `
     });
+
     const verifyToken = jwt.sign(
       {
         sub: user._id.toString(),
@@ -82,10 +83,8 @@ exports.register = async (req, res) => {
 
     res.cookie("verify_token", verifyToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      // secure: process.env.NODE_ENV === "production",
-      // sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 10 * 60 * 1000
     });
 
@@ -106,7 +105,7 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
-   
+
     // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
@@ -211,7 +210,7 @@ exports.login = async (req, res) => {
       httpOnly: true,
       // secure: isProd,
       // sameSite: isProd ? "None" : "Lax",
-      secure:true,
+      secure: true,
       sameSite: "none",
       maxAge: 60 * 60 * 1000
     });
@@ -308,7 +307,7 @@ exports.forgotPassword = async (req, res) => {
       httpOnly: true,
       // secure: process.env.NODE_ENV === "production",
       // sameSite: "strict",
-      secure:true,
+      secure: true,
       sameSite: "none",
       maxAge: 10 * 60 * 1000
     });
@@ -437,7 +436,7 @@ exports.verifyAdminOtp = async (req, res) => {
       httpOnly: true,
       // secure: isProd,
       // sameSite: isProd ? "None" : "Lax",
-      secure:true,
+      secure: true,
       sameSite: "none",
       maxAge: 60 * 60 * 1000
     });
@@ -451,36 +450,69 @@ exports.verifyAdminOtp = async (req, res) => {
   }
 };
 
+
 exports.verifyEmailOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { otp } = req.body;
+    const userId = req.user.sub;
 
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Invalid request" });
+    if (!otp) {
+      return res.status(400).json({
+        code: "OTP_REQUIRED",
+        message: "OTP is required"
+      });
     }
 
-    const user = await User.findOne({
-      email: email.toLowerCase(),
-      emailOtpHash: hashOtp(String(otp)),
-      emailOtpExpires: { $gt: Date.now() }
-    }).select("+emailOtpHash");
+    const user = await User.findById(userId);
 
-    if (!user) {
-      return res.status(401).json({ message: "Invalid or expired OTP" });
+    if (!user || !user.emailOtpHash || !user.emailOtpExpires) {
+      return res.status(400).json({
+        code: "INVALID_OTP",
+        message: "Invalid or expired OTP"
+      });
     }
 
+    if (Date.now() > user.emailOtpExpires) {
+      return res.status(400).json({
+        code: "INVALID_OTP",
+        message: "Invalid or expired OTP"
+      });
+    }
+
+    const providedHash = crypto
+      .createHash("sha256")
+      .update(String(otp).trim())
+      .digest();
+
+    const storedHash = Buffer.from(user.emailOtpHash, "hex");
+
+    if (
+      storedHash.length !== providedHash.length ||
+      !crypto.timingSafeEqual(storedHash, providedHash)
+    ) {
+      return res.status(400).json({
+        code: "INVALID_OTP",
+        message: "Invalid or expired OTP"
+      });
+    }
+
+    // ✅ Success
+    user.isEmailVerified = true;
     user.emailOtpHash = undefined;
     user.emailOtpExpires = undefined;
-    user.isEmailVerified = true;
     await user.save();
 
     return res.status(200).json({
+      code: "EMAIL_VERIFIED",
       message: "Email verified successfully"
     });
 
   } catch (err) {
-    console.error("Verify email OTP error:", err.message);
-    return res.status(500).json({ message: "Verification failed" });
+    console.error("OTP verify error:", err);
+    return res.status(500).json({
+      code: "OTP_VERIFY_FAILED",
+      message: "Verification failed"
+    });
   }
 };
 
@@ -575,7 +607,7 @@ exports.resendEmailOtp = async (req, res) => {
     }
 
     // 🔁 Generate new OTP
-    const otp = generateOtp();
+    const otp = crypto.randomInt(100000, 999999);
     user.emailOtpHash = hashOtp(otp);
     user.emailOtpExpires = Date.now() + 5 * 60 * 1000;
     await user.save();
@@ -761,7 +793,7 @@ exports.verifyForgotOtp = async (req, res) => {
       httpOnly: true,
       // secure: process.env.NODE_ENV === "production",
       // sameSite: "strict",
-      secure:true,
+      secure: true,
       sameSite: "none",
       maxAge: 10 * 60 * 1000
     });
