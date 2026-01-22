@@ -82,11 +82,12 @@ exports.register = async (req, res) => {
     );
 
     res.cookie("verify_token", verifyToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 10 * 60 * 1000
-    });
+  httpOnly: true,
+  secure: true,          // 🔴 REQUIRED in prod
+  sameSite: "none",      // 🔴 REQUIRED for cross-site
+  maxAge: 10 * 60 * 1000
+});
+
 
     return res.status(201).json({
       code: "EMAIL_OTP_SENT",
