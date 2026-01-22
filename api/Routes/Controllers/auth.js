@@ -1,9 +1,12 @@
 const validator = require("validator");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const User = require("../../../models/user");
 const { generateOtp, hashOtp } = require("../../utils/otp");
 const { sendEmail } = require("../../utils/sendEmail");
+const { getCookieOptions } = require("../../utils/cookies");
+
 
 
 exports.register = async (req, res) => {
@@ -81,14 +84,7 @@ exports.register = async (req, res) => {
       { expiresIn: "10m" }
     );
 
-    res.cookie("verify_token", verifyToken, {
-  httpOnly: true,
-  secure: true,          // 🔴 REQUIRED in prod
-  sameSite: "none",      // 🔴 REQUIRED for cross-site
-  maxAge: 10 * 60 * 1000
-});
-
-
+    res.cookie("verify_token", verifyToken, getCookieOptions());
     return res.status(201).json({
       code: "EMAIL_OTP_SENT",
       message: "OTP sent to your email"
@@ -145,12 +141,12 @@ exports.login = async (req, res) => {
         }
       );
 
+      const isProd = process.env.NODE_ENV === "production";
+
       res.cookie("pwd_change_token", tempToken, {
         httpOnly: true,
-        // secure: process.env.NODE_ENV === "production",
-        // sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-        secure: true,
-        sameSite: "none",
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
         maxAge: 10 * 60 * 1000
       });
 
@@ -207,12 +203,10 @@ exports.login = async (req, res) => {
 
     const isProd = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
-      path: '/',
+      path: "/",
       httpOnly: true,
-      // secure: isProd,
-      // sameSite: isProd ? "None" : "Lax",
-      secure: true,
-      sameSite: "none",
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       maxAge: 60 * 60 * 1000
     });
 
@@ -457,6 +451,7 @@ exports.verifyEmailOtp = async (req, res) => {
     const { otp } = req.body;
     const userId = req.user.sub;
 
+
     if (!otp) {
       return res.status(400).json({
         code: "OTP_REQUIRED",
@@ -464,8 +459,7 @@ exports.verifyEmailOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
-
+    const user = await User.findById(userId).select("+emailOtpHash +emailOtpExpires");
     if (!user || !user.emailOtpHash || !user.emailOtpExpires) {
       return res.status(400).json({
         code: "INVALID_OTP",
@@ -473,7 +467,7 @@ exports.verifyEmailOtp = async (req, res) => {
       });
     }
 
-    if (Date.now() > user.emailOtpExpires) {
+    if (user.emailOtpExpires.getTime() < Date.now()) {
       return res.status(400).json({
         code: "INVALID_OTP",
         message: "Invalid or expired OTP"

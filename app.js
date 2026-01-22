@@ -17,16 +17,38 @@ const communicationRouter=require('./api/Routes/communication')
 const faqRoutes=require('./api/Routes/Faq');
 const planRequestRoutes=require('./api/Routes/PlanRequest')
 
+app.set("trust proxy", 1);
+
+// ✅ Define allowed origins
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://domzdomain.netlify.app",
+  "https://www.domzdomain.netlify.app"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("CORS not allowed"));
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+
+
+
+
 // middlewares
 app.use(morgan('dev'));
 app.use(cookieParser());
 
-app.use(cors({
-  origin: process.env.NODE_ENV === "production"
-    ? "https://domzdomain.netlify.app"
-    : "http://localhost:3000",
-  credentials: true
-}));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
