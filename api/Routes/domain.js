@@ -27,8 +27,9 @@ router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDo
 router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.AdmindeleteDomain);
 
 
-router.delete('/:domainId',authenticate,domainController.deleteDomain);
+
 router.delete('/bulk-delete',authenticate,domainController.deleteBulkDomains);
+router.delete('/:domainId',authenticate,domainController.deleteDomain);
 
 
 
