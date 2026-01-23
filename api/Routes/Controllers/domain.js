@@ -337,20 +337,114 @@ exports.toggleChat = async (req, res) => {
   });
 };
 
-exports.deleteDomain = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  const deleted = await domainSchema.findOneAndDelete({
-    _id: id,
-    userId
-  });
+exports.AdmindeleteDomain = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+    if (!domainId) {
+      return res.status(400).json({
+        success: false,
+        message: "domainId is required",
+      });
+    }
 
-  if (!deleted) {
-    return res.status(404).json({ message: "Domain not found" });
+    const domain = await domainSchema.findById(domainId);
+    if (!domain) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+
+    await domainSchema.findByIdAndDelete(domainId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Domain deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteDomain error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
-
-  res.json({ message: "Domain deleted successfully" });
 };
+exports.deleteDomain = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+    const userId = req.user.id; // 🔐 from auth middleware
+
+    if (!domainId) {
+      return res.status(400).json({
+        success: false,
+        message: "domainId is required",
+      });
+    }
+
+    const deleted = await domainSchema.findOneAndDelete({
+      _id: domainId,
+      userId, // 🔥 enforce ownership
+    });
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found or not authorized",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Domain deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteDomain error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+exports.deleteBulkDomains = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const userId = req.user.id; // 🔐 user from auth middleware
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ids must be a non-empty array",
+      });
+    }
+
+    const result = await domainSchema.deleteMany({
+      _id: { $in: ids },
+      userId, // 🔥 enforce ownership
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No domains found or not authorized to delete",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Domains deleted successfully",
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("deleteBulkDomains error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 
 // exports.getHiddenDomains = async (req, res) => {
 //   try {
@@ -793,37 +887,3 @@ exports.changeDomainStatus = async (req, res) => {
 
 
 
-exports.deleteDomain = async (req, res) => {
-  try {
-    const { domainId } = req.params;
-
-    if (!domainId) {
-      return res.status(400).json({
-        success: false,
-        message: "domainId is required",
-      });
-    }
-
-    const domain = await domainSchema.findById(domainId);
-    if (!domain) {
-      return res.status(404).json({
-        success: false,
-        message: "Domain not found",
-      });
-    }
-
-    await domainSchema.findByIdAndDelete(domainId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Domain deleted successfully",
-    });
-  } catch (error) {
-    console.error("deleteDomain error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-};

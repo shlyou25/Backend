@@ -7,7 +7,6 @@ router.post('/adddomain',authenticate,domainController.adddomain);
 router.get('/getdomainbyuser',authenticate,domainController.getdomainbyuserid);
 router.patch('/:id/toggle-hide',authenticate,domainController.toggleHide);
 router.patch('/:id/toggle-chat',authenticate,domainController.toggleChat);
-router.delete('/:id',authenticate,domainController.deleteDomain);
 
 router.get("/public", domainController.getHiddenDomains); 
 router.get("/promoted", domainController.getPromotedDomains);
@@ -25,7 +24,11 @@ router.delete('/promoted/:domainId',authenticate,isAdmin,domainController.remove
 router.post('/promote',authenticate,isAdmin,domainController.promoteDomain);
 router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.removeDomainPriority);
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);
-router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.deleteDomain);
+router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.AdmindeleteDomain);
+
+
+router.delete('/:domainId',authenticate,domainController.deleteDomain);
+router.delete('/bulk-delete',authenticate,domainController.deleteBulkDomains);
 
 
 
