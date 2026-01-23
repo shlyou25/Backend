@@ -97,68 +97,139 @@ exports.adddomain = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 🔹 Active plan
+    /* ------------------ PLAN CHECK ------------------ */
     const activePlan = await planSchema
       .findOne({ userId })
       .sort({ createdAt: -1 });
 
     if (!activePlan || activePlan.endingDate < new Date()) {
       return res.status(400).json({
-        message: "Please get a plan before adding domains."
+        message: "Please get a plan before adding domains.",
       });
     }
 
     const allowedDomains = activePlan.feature;
 
+    /* ------------------ INPUT VALIDATION ------------------ */
     let { domains } = req.body;
+
     if (!domains) {
       return res.status(400).json({ message: "No domains provided." });
     }
 
-    // 🔹 Normalize input
+    let normalizedDomains = [];
+
+    // Legacy string support
     if (typeof domains === "string") {
-      domains = domains
-        .split(/[\n,]/)
-        .map(d => d.trim().toLowerCase())
+      normalizedDomains = domains
+        .split(/[\n,]+/)
+        .map((d) => ({
+          domainName: d.trim().toLowerCase(),
+          url: null,
+        }))
+        .filter((d) => d.domainName);
+    }
+
+    // Array support
+    else if (Array.isArray(domains)) {
+      normalizedDomains = domains
+        .map((d) => {
+          if (typeof d === "string") {
+            return { domainName: d.trim().toLowerCase(), url: null };
+          }
+
+          if (
+            typeof d === "object" &&
+            typeof d.domainName === "string"
+          ) {
+            return {
+              domainName: d.domainName.trim().toLowerCase(),
+              url:
+                typeof d.url === "string" && d.url.trim()
+                  ? d.url.trim()
+                  : null,
+            };
+          }
+
+          return null;
+        })
         .filter(Boolean);
+    } else {
+      return res.status(400).json({ message: "Invalid domains format." });
     }
 
-    if (!Array.isArray(domains) || domains.length === 0) {
-      return res.status(400).json({ message: "Invalid domain format." });
+    if (!normalizedDomains.length) {
+      return res.status(400).json({ message: "No valid domains provided." });
     }
 
-    // 🔹 Check duplicate in request
+    /* ------------------ DUPLICATE CHECK (REQUEST) ------------------ */
     const seen = new Set();
-    const dupReq = domains.filter(d => seen.size === seen.add(d).size);
-    if (dupReq.length) {
+    const duplicatesInRequest = [];
+
+    for (const d of normalizedDomains) {
+      if (seen.has(d.domainName)) {
+        duplicatesInRequest.push(d.domainName);
+      }
+      seen.add(d.domainName);
+    }
+
+    if (duplicatesInRequest.length) {
       return res.status(400).json({
         message: "Duplicate domains in request.",
-        duplicates: [...new Set(dupReq)]
+        duplicates: [...new Set(duplicatesInRequest)],
       });
     }
 
-    // 🔹 Check duplicate in DB
-    const existingEncrypted = await domainSchema.find({ userId }).lean();
-    const existingPlain = existingEncrypted.map(d =>
+    /* ------------------ DUPLICATE CHECK (DB) ------------------ */
+    const existingEncrypted = await domainSchema
+      .find({ userId })
+      .select("domain")
+      .lean();
+
+    const existingPlain = existingEncrypted.map((d) =>
       decryptData(d.domain)
     );
 
-    const dupDB = domains.filter(d => existingPlain.includes(d));
-    if (dupDB.length) {
+    const duplicatesInDB = normalizedDomains
+      .map((d) => d.domainName)
+      .filter((d) => existingPlain.includes(d));
+
+    if (duplicatesInDB.length) {
       return res.status(400).json({
         message: "Domains already exist.",
-        duplicates: dupDB
+        duplicates: duplicatesInDB,
       });
     }
 
-    // 🔹 Call external domain check API
-    const apiResponse = await axios.post(
-      "https://73ce4adc511e.ngrok-free.app/check_domains",
-      { domains }
-    );
+    /* ------------------ BUILD LOOKUP MAP ------------------ */
+    // key sent to checker -> original input
+    const lookupMap = new Map();
 
-    const results = apiResponse.data.results || [];
+    for (const d of normalizedDomains) {
+      const checkerKey = d.url ? d.url : d.domainName;
+      lookupMap.set(checkerKey, d);
+    }
 
+    const checkerPayload = [...lookupMap.keys()];
+
+    /* ------------------ CALL CHECKER ------------------ */
+    let apiResponse;
+    try {
+      apiResponse = await axios.post(
+        "https://73ce4adc511e.ngrok-free.app/check_domains",
+        { domains: checkerPayload }
+      );
+    } catch {
+      return res.status(502).json({
+        message: "Domain verification service unavailable.",
+      });
+    }
+
+    const results = Array.isArray(apiResponse.data?.results)
+      ? apiResponse.data.results
+      : [];
+
+    /* ------------------ CLASSIFY RESULTS ------------------ */
     const passDomains = [];
     const manualDomains = [];
     const failedDomains = [];
@@ -169,10 +240,10 @@ exports.adddomain = async (req, res) => {
       else failedDomains.push(r);
     }
 
-    const totalToInsert = passDomains.length + manualDomains.length;
     const existingCount = existingPlain.length;
+    const totalToInsert = passDomains.length + manualDomains.length;
 
-    // 🔹 Enforce plan limit
+    /* ------------------ PLAN LIMIT CHECK ------------------ */
     if (
       allowedDomains !== -1 &&
       existingCount + totalToInsert > allowedDomains
@@ -181,42 +252,52 @@ exports.adddomain = async (req, res) => {
         message: `Your plan allows ${allowedDomains} domains.
 You already added ${existingCount}.
 You can add only ${allowedDomains - existingCount} more.`,
-        pass: passDomains.map(d => d.domain),
-        manualReview: manualDomains.map(d => d.domain),
-        failed: failedDomains.map(d => d.domain)
+        pass: passDomains.map((d) => d.domain),
+        manualReview: manualDomains.map((d) => d.domain),
+        failed: failedDomains.map((d) => d.domain),
       });
     }
-    // 🔹 Insert Pass + Manual Review
-    const docs = [...passDomains, ...manualDomains, ...failedDomains].map(d => ({
-      domain: encryptData(d.domain),
-      userId,
-      status: d.status,
-      finalUrl: d.final_url || null
-    }));
+
+    /* ------------------ INSERT DOMAINS ------------------ */
+    const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
+      (r) => {
+        const original = lookupMap.get(r.domain);
+
+        return {
+          domain: encryptData(original.domainName), // ✅ always domainName
+          userId,
+          status: r.status,
+          finalUrl: original.url
+            ? original.url // ✅ frontend URL
+            : r.final_url || null, // ✅ checker URL only if no frontend URL
+        };
+      }
+    );
 
     if (docs.length) {
       await domainSchema.insertMany(docs);
     }
 
+    /* ------------------ RESPONSE ------------------ */
     return res.status(200).json({
       message: "Domain processing completed.",
-      added: passDomains.map(d => d.domain),
-      manualReview: manualDomains.map(d => d.domain),
-      failed: failedDomains.map(d => d.domain),
+      added: passDomains.map((d) => d.domain),
+      manualReview: manualDomains.map((d) => d.domain),
+      failed: failedDomains.map((d) => d.domain),
       remaining:
         allowedDomains === -1
           ? "Unlimited"
-          : allowedDomains - (existingCount + totalToInsert)
+          : allowedDomains - (existingCount + totalToInsert),
     });
-
   } catch (error) {
     console.error("AddDomain Error:", error);
     return res.status(500).json({
-      status: false,
-      message: "Error adding domains"
+      message: "Error adding domains",
     });
   }
 };
+
+
 
 exports.getdomainbyuserid = async (req, res) => {
   try {
