@@ -1,19 +1,40 @@
 const jwt = require("jsonwebtoken");
+const User = require("../../models/user");
 
-module.exports = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+exports.optionalAuthenticate = async (req, res, next) => {
+  try {
+    const token = req.cookies?.token;
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
-  if (!token) {
-    req.user = null; // guest
+    const user = await User.findById(decoded.sub)
+      .select("role tokenVersion isActive isEmailVerified email")
+      .lean();
+    if (!user || user.tokenVersion !== decoded.tokenVersion) {
+      req.user = null;
+      return next();
+    }
+    if (user.role !== "admin" && !user.isActive) {
+      req.user = null;
+      return next();
+    }
+    req.user = {
+      id: user._id,
+      role: user.role,
+      email: user.email,
+      isEmailVerified: user.isEmailVerified,
+    };
+
+    return next();
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Optional auth error:", error.message);
+    }
+    req.user = null;
     return next();
   }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    req.user = null;
-    next(); // don't block
-  }
 };
+

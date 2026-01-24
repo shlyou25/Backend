@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const subscriptionScontroler=require('./Controllers/subscribe');
-const optionalAuth = require('../middlewares/optionalAuth');
+const {authenticate,isAdmin} = require('../middlewares/authenticate');
+const {optionalAuthenticate} = require('../middlewares/optionalAuth');
 
-router.post('/',optionalAuth,subscriptionScontroler.subscribe)
+router.post('/',optionalAuthenticate,subscriptionScontroler.subscribe)
+router.get('/getallsubscriber',authenticate,isAdmin,subscriptionScontroler.getAllSubscribers)
 
 
 

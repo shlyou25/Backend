@@ -61,7 +61,6 @@ app.use('/api/faq',faqRoutes)
 app.use('/api/planrequest',planRequestRoutes)
 app.use('/api/subscribe',subscribeRoutes)
 
-
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
