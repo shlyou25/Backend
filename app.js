@@ -16,6 +16,7 @@ const paymentRouter=require('./api/Routes/payment');
 const communicationRouter=require('./api/Routes/communication')
 const faqRoutes=require('./api/Routes/Faq');
 const planRequestRoutes=require('./api/Routes/PlanRequest')
+const subscribeRoutes=require('./api/Routes/subscribe')
 
 app.set("trust proxy", 1);
 
@@ -41,14 +42,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-
-
-
 // middlewares
 app.use(morgan('dev'));
 app.use(cookieParser());
-
-
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -63,6 +59,7 @@ app.use('/api/payment',paymentRouter);
 app.use('/api/communication',communicationRouter);
 app.use('/api/faq',faqRoutes)
 app.use('/api/planrequest',planRequestRoutes)
+app.use('/api/subscribe',subscribeRoutes)
 
 
 // 404 handler
