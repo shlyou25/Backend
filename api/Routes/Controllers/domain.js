@@ -96,8 +96,6 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 exports.adddomain = async (req, res) => {
   try {
     const userId = req.user.id;
-
-    /* ------------------ PLAN CHECK ------------------ */
     const activePlan = await planSchema
       .findOne({ userId })
       .sort({ createdAt: -1 });
@@ -109,8 +107,6 @@ exports.adddomain = async (req, res) => {
     }
 
     const allowedDomains = activePlan.feature;
-
-    /* ------------------ INPUT VALIDATION ------------------ */
     let { domains } = req.body;
 
     if (!domains) {
@@ -118,8 +114,6 @@ exports.adddomain = async (req, res) => {
     }
 
     let normalizedDomains = [];
-
-    // Legacy string support
     if (typeof domains === "string") {
       normalizedDomains = domains
         .split(/[\n,]+/)
@@ -129,8 +123,6 @@ exports.adddomain = async (req, res) => {
         }))
         .filter((d) => d.domainName);
     }
-
-    // Array support
     else if (Array.isArray(domains)) {
       normalizedDomains = domains
         .map((d) => {
@@ -161,8 +153,6 @@ exports.adddomain = async (req, res) => {
     if (!normalizedDomains.length) {
       return res.status(400).json({ message: "No valid domains provided." });
     }
-
-    /* ------------------ DUPLICATE CHECK (REQUEST) ------------------ */
     const seen = new Set();
     const duplicatesInRequest = [];
 
@@ -179,8 +169,6 @@ exports.adddomain = async (req, res) => {
         duplicates: [...new Set(duplicatesInRequest)],
       });
     }
-
-    /* ------------------ DUPLICATE CHECK (DB) ------------------ */
     const existingEncrypted = await domainSchema
       .find({ userId })
       .select("domain")
@@ -200,9 +188,6 @@ exports.adddomain = async (req, res) => {
         duplicates: duplicatesInDB,
       });
     }
-
-    /* ------------------ BUILD LOOKUP MAP ------------------ */
-    // key sent to checker -> original input
     const lookupMap = new Map();
 
     for (const d of normalizedDomains) {
@@ -211,12 +196,10 @@ exports.adddomain = async (req, res) => {
     }
 
     const checkerPayload = [...lookupMap.keys()];
-
-    /* ------------------ CALL CHECKER ------------------ */
     let apiResponse;
     try {
       apiResponse = await axios.post(
-        "https://73ce4adc511e.ngrok-free.app/check_domains",
+        "https://539cc30604e5.ngrok-free.app/check_domains",
         { domains: checkerPayload }
       );
     } catch {
@@ -228,8 +211,6 @@ exports.adddomain = async (req, res) => {
     const results = Array.isArray(apiResponse.data?.results)
       ? apiResponse.data.results
       : [];
-
-    /* ------------------ CLASSIFY RESULTS ------------------ */
     const passDomains = [];
     const manualDomains = [];
     const failedDomains = [];
