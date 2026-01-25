@@ -199,7 +199,7 @@ exports.adddomain = async (req, res) => {
     let apiResponse;
     try {
       apiResponse = await axios.post(
-        "https://df9e227e1e41.ngrok-free.app/check_domains",
+        "https://domain-analyser-g5oce.ondigitalocean.app/check_domains",
         { domains: checkerPayload }
       );
     } catch {
