@@ -313,55 +313,6 @@ exports.getdomainbyuserid = async (req, res) => {
   }
 };
 
-exports.getAllDomains = async (req, res) => {
-  try {
-    const domainsRaw = await domainSchema
-      .find()
-      .populate({
-        path: "userId",
-        select: "name email role" // ❌ remove match
-      })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // 🔢 COUNT FROM RAW DATA
-    const manualReviewCount = domainsRaw.filter(
-      d => d.status === "Manual Review"
-    ).length;
-    // ⚠️ FILTER ONLY FOR RESPONSE
-    const filtered = domainsRaw.filter(
-      d => d.userId && d.userId.role === "user"
-    );
-
-    const domains = filtered.map(d => ({
-      domainId: d._id,
-      domain: decryptData(d.domain),
-      status: d.status,
-      finalUrl: d.finalUrl || null,
-      promotedNumber: d.isPromoted ? d.promotionPriority : null,
-      createdAt: d.createdAt,
-      owner: {
-        name: d.userId.name,
-        email: d.userId.email
-      }
-    }));
-
-    return res.status(200).json({
-      success: true,
-      count: domains.length,
-      manualReviewCount,
-      domains
-    });
-
-  } catch (error) {
-    console.error("Get domains error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch domains"
-    });
-  }
-};
-
 
 exports.toggleHide = async (req, res) => {
   const { id } = req.params;
@@ -792,41 +743,64 @@ exports.getPromotedDomains = async (req, res) => {
   }
 };
 
-// exports.getAllDomains = async (req, res) => {
-//   try {
-//     const domainsRaw = await domainSchema
-//       .find({})
-//       .sort({
-//         isPromoted: -1,           // promoted first
-//         promotionPriority: 1,     // lower priority number first
-//         createdAt: -1             // fallback order
-//       })
-//       .select("_id domain promotionPriority isPromoted status finalUrl")
-//       .lean();
+exports.getAllDomains = async (req, res) => {
+  try {
+    const domainsRaw = await domainSchema
+      .find({})
+      .populate({
+        path: "userId",
+        select: "name email" // ✅ only what you need
+      })
+      .sort({
+        isPromoted: -1,
+        promotionPriority: 1,
+        createdAt: -1
+      })
+      .select(
+        "_id domain promotionPriority isPromoted status finalUrl userId createdAt"
+      )
+      .lean();
 
-//     const domains = domainsRaw.map(d => ({
-//       domainId: d._id,
-//       domain: decryptData(d.domain),
-//       isPromoted: d.isPromoted,
-//       priority: d.promotionPriority ?? null,
-//       status: d.status,
-//       finalUrl: d.finalUrl
-//     }));
+    // ✅ COUNT MANUAL REVIEW
+    const manualReviewCount = domainsRaw.filter(
+      d => d.status === "Manual Review"
+    ).length;
 
-//     return res.status(200).json({
-//       success: true,
-//       count: domains.length,
-//       domains
-//     });
+    const domains = domainsRaw.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      isPromoted: d.isPromoted,
+      priority: d.promotionPriority ?? null,
+      status: d.status,
+      finalUrl: d.finalUrl || null,
+      createdAt: d.createdAt, // ✅ added
+      owner: d.userId
+        ? {
+            name: d.userId.name,
+            email: d.userId.email
+          }
+        : {
+            name: "Anonymous",
+            email: null
+          }
+    }));
 
-//   } catch (error) {
-//     console.error("Get all domains error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch domains"
-//     });
-//   }
-// };
+    return res.status(200).json({
+      success: true,
+      count: domains.length,
+      manualReviewCount,
+      domains
+    });
+
+  } catch (error) {
+    console.error("Get all domains error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch domains"
+    });
+  }
+};
+
 
 
 
@@ -947,5 +921,33 @@ exports.changeDomainStatus = async (req, res) => {
   }
 };
 
+
+
+
+// GET /domain/search
+exports.serachDomain = async(req, res) => {
+  try {
+    const q = req.query.q?.trim();
+    if (!q) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    const domains = await domainSchema.find({
+      isHidden: false,                          // ✅ ONLY visible domains
+      domain: { $regex: q, $options: "i" }      // case-insensitive search
+    })
+      .populate("userId", "name")
+      .sort({ createdAt: -1 })                  // simple & predictable
+      .limit(50);                               // safety limit
+
+    res.json({
+      domains,
+      total: domains.length
+    });
+  } catch (err) {
+    console.error("Domain search error:", err);
+    res.status(500).json({ error: "Search failed" });
+  }
+};
 
 

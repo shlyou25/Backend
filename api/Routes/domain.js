@@ -10,9 +10,10 @@ router.patch('/:id/toggle-chat',authenticate,domainController.toggleChat);
 
 router.get("/public", domainController.getHiddenDomains); 
 router.get("/promoted", domainController.getPromotedDomains);
+router.get("/search", domainController.serachDomain);
 
 
-router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);
+router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);  
 router.get('/getallpromoteddomain',authenticate,isAdmin,domainController.getAllPromotedDomains);
 
 
