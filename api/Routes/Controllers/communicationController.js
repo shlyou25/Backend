@@ -113,7 +113,7 @@ exports.mailgunInbound = async (req, res) => {
       : comm.sellerProxy;
 
     await mailgun.messages.create(process.env.MAILGUN_DOMAIN, {
-      from: "Domz Proxy <proxy@mg.domz.com>",
+      from: `Domz Proxy <${replyTo}>`,
       to: toEmail,
       subject: subject || "New message",
       text: body_plain || "",
