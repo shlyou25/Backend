@@ -23,6 +23,7 @@ app.set("trust proxy", 1);
 // ✅ Define allowed origins
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://domz.com/",
   "https://domzdomain.netlify.app",
   "https://www.domzdomain.netlify.app"
 ];
