@@ -6,7 +6,11 @@ const domainSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-
+    domainSearch: {
+      type: String,
+      index: true,
+      select: false // 👈 security best practice
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -33,12 +37,12 @@ const domainSchema = new mongoose.Schema(
       default: false,
       index: true
     },
-    isPromoted:{
-      type:Boolean,
-      default:false,
-      index:true
+    isPromoted: {
+      type: Boolean,
+      default: false,
+      index: true
     },
-     promotionPriority: {
+    promotionPriority: {
       type: Number,
       unique: true,        // 🚨 GLOBAL uniqueness
       sparse: true,        // allows multiple nulls

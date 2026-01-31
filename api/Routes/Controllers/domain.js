@@ -246,6 +246,7 @@ You can add only ${allowedDomains - existingCount} more.`,
 
         return {
           domain: encryptData(original.domainName), // ✅ always domainName
+          domainSearch: original.domainName.toLowerCase(),
           userId,
           status: r.status,
           finalUrl: original.url
@@ -925,29 +926,73 @@ exports.changeDomainStatus = async (req, res) => {
 
 
 // GET /domain/search
-exports.serachDomain = async(req, res) => {
+
+// controllers/domain.cont
+exports.serachDomain = async (req, res) => {
   try {
-    const q = req.query.q?.trim();
-    if (!q) {
-      return res.status(400).json({ error: "Search query is required" });
+    const search = (req.query.search || "").trim().toLowerCase();
+    const { date } = req.query;
+
+    const query = {
+      status: "Pass",
+      isHidden: false
+    };
+
+    if (search) {
+      query.domainSearch = {
+        $exists: true,
+        $regex: search,
+        $options: "i"
+      };
     }
 
-    const domains = await domainSchema.find({
-      isHidden: false,                          // ✅ ONLY visible domains
-      domain: { $regex: q, $options: "i" }      // case-insensitive search
-    })
-      .populate("userId", "name")
-      .sort({ createdAt: -1 })                  // simple & predictable
-      .limit(50);                               // safety limit
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
+    }
+
+    const domainsRaw = await domainSchema
+      .find(query)
+      .populate({ path: "userId", select: "name email" })
+      .sort({
+        isPromoted: -1,
+        promotionPriority: 1,
+        createdAt: -1
+      })
+      .select("_id domain promotionPriority isPromoted status finalUrl userId createdAt")
+      .lean();
+
+    const domains = domainsRaw.map(d => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      isPromoted: d.isPromoted,
+      priority: d.promotionPriority ?? null,
+      status: d.status,
+      finalUrl: d.finalUrl || null,
+      createdAt: d.createdAt,
+      owner: d.userId
+        ? { name: d.userId.name, email: d.userId.email }
+        : { name: "Anonymous", email: null }
+    }));
 
     res.json({
-      domains,
-      total: domains.length
+      success: true,
+      count: domains.length,
+      total: domains.length,
+      domains
     });
+
   } catch (err) {
-    console.error("Domain search error:", err);
-    res.status(500).json({ error: "Search failed" });
+    console.error(err);
+    res.status(500).json({ success: false, message: "Search failed" });
   }
 };
+
+
+
+
 
 
