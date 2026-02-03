@@ -2,6 +2,9 @@ const axios = require("axios");
 
 exports.sendEmail = async ({ to, subject, html }) => {
   try {
+    const recipients = Array.isArray(to)
+      ? to.map(email => ({ email }))
+      : [{ email: to }];
     await axios.post(
       "https://api.brevo.com/v3/smtp/email",
       {
@@ -9,7 +12,7 @@ exports.sendEmail = async ({ to, subject, html }) => {
           name: "Domz",
           email: process.env.EMAIL_FROM
         },
-        to: [{ email: to }],
+        to: recipients,
         subject,
         htmlContent: html
       },

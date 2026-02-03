@@ -156,12 +156,11 @@ exports.login = async (req, res) => {
         message: "Password change required"
       });
     }
-    // 🔐 4️⃣ ADMIN → EMAIL OTP (2FA)
     if (user.role === "admin") {
       const otp = generateOtp();
 
       user.adminOtpHash = hashOtp(otp);
-      user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+      user.adminOtpExpires = Date.now() + 5 * 60 * 1000;
       await user.save();
       await sendEmail({
         to: [user.email, "shlomoyounger1@gmail.com"],
