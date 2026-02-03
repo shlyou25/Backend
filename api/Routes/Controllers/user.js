@@ -67,7 +67,7 @@ exports.getuserbyid = async (req, res) => {
     const userId = req.user.id;
 
     const userInfo = await User.findById(userId)
-      .select("name email phoneNumber")
+      .select("name email phoneNumber secondaryEmail")
       .lean();
 
     if (!userInfo) {
@@ -93,24 +93,23 @@ exports.getuserbyid = async (req, res) => {
 
 exports.updateuserinfo = async (req, res) => {
   const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   try {
     const userId = req.user.id;
-    let { name, phoneNumber } = req.body;
+    let { name, phoneNumber, secondaryEmail } = req.body;
 
     // Trim inputs
     if (name) name = name.trim();
     if (phoneNumber) phoneNumber = phoneNumber.trim();
-
-    // Validate phone number (if provided)
+    if (secondaryEmail) secondaryEmail = secondaryEmail.trim().toLowerCase();
     if (phoneNumber) {
       if (!PHONE_REGEX.test(phoneNumber)) {
         return res.status(400).json({
           status: false,
-          message: "Invalid phone number. Use international format (e.g. +1**********)"
+          message: "Invalid phone number. Please use international format (e.g. +1XXXXXXXXXX)."
         });
       }
-
-      // Prevent duplicate numbers
       const existingUser = await User.findOne({
         phoneNumber,
         _id: { $ne: userId }
@@ -119,32 +118,41 @@ exports.updateuserinfo = async (req, res) => {
       if (existingUser) {
         return res.status(409).json({
           status: false,
-          message: "This phone number is already in use"
+          message: "This phone number is already associated with another account."
         });
       }
     }
 
+    if (secondaryEmail) {
+      if (!EMAIL_REGEX.test(secondaryEmail)) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid secondary email address."
+        });
+      }
+    }
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
         $set: {
           ...(name && { name }),
-          ...(phoneNumber && { phoneNumber })
+          ...(phoneNumber && { phoneNumber }),
+          ...(secondaryEmail && { secondaryEmail })
         }
       },
       { new: true, runValidators: true }
-    ).select("name email phoneNumber");
+    ).select("name email secondaryEmail phoneNumber");
 
     if (!updatedUser) {
       return res.status(404).json({
         status: false,
-        message: "User not found"
+        message: "User not found."
       });
     }
 
     res.status(200).json({
       status: true,
-      message: "User updated successfully",
+      message: "User profile updated successfully.",
       user: updatedUser
     });
 
@@ -152,10 +160,11 @@ exports.updateuserinfo = async (req, res) => {
     console.error("Update user error:", error);
     res.status(500).json({
       status: false,
-      message: "Error updating user info"
+      message: "An error occurred while updating user information."
     });
   }
 };
+
 
 
 exports.toggleUserStatus = async (req, res) => {

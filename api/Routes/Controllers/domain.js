@@ -345,10 +345,13 @@ exports.toggleChat = async (req, res) => {
   domain.isChatActive = !domain.isChatActive;
   await domain.save();
 
-  res.json({
-    message: "Chat status updated",
-    isChatActive: domain.isChatActive
-  });
+ res.json({
+  message: domain.isChatActive
+    ? "Chat is now active. Buyers will be able to view your email address on the Connect in Buy page."
+    : "Chat is inactiveZ. Buyer communication is limited to the landing page.",
+  isChatActive: domain.isChatActive
+});
+
 };
 
 exports.AdmindeleteDomain = async (req, res) => {
@@ -559,7 +562,6 @@ exports.getHiddenDomains = async (req, res) => {
     });
   }
 };
-
 
 
 exports.promoteDomain = async (req, res) => {

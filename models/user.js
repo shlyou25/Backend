@@ -14,7 +14,21 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       index: true
     },
-
+    secondaryEmail: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      unique: true,
+      sparse: true, 
+      index: true,
+      validate: {
+        validator: function (value) {
+          return !value || value !== this.email;
+        },
+        message:
+          "Secondary email must be different from the primary email. The primary email is used for sales interactions when chat is enabled."
+      }
+    },
     phoneNumber: {
       type: String,
       required: false,
