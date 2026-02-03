@@ -34,7 +34,6 @@ const userSchema = new mongoose.Schema(
       required: false,
       select: true
     },
-
     password: {
       type: String,
       required: true,
@@ -94,8 +93,41 @@ const userSchema = new mongoose.Schema(
     },
     plans: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Plan" }
-    ]
+    ],
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
+
+    // 🔐 SECURITY / ABUSE PROTECTION
+    failedAttempts: {
+      type: Number,
+      default: 0,
+      select: false
+    },
+
+    accountLockedUntil: {
+      type: Date,
+      select: false
+    },
+
+    lastFailedAttemptAt: {
+      type: Date,
+      select: false
+    },
+
+    // Optional: audit reason
+    lockReason: {
+      type: String,
+      enum: ["OTP_FAILED", "LOGIN_FAILED", "PASSWORD_RESET_FAILED"],
+      select: false
+    },
+
+    // --- rest ---
+
   },
+  
   { timestamps: true }
 );
 

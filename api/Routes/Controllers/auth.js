@@ -6,6 +6,7 @@ const User = require("../../../models/user");
 const { generateOtp, hashOtp } = require("../../utils/otp");
 const { sendEmail } = require("../../utils/sendEmail");
 const { getCookieOptions } = require("../../utils/cookies");
+const { checkAccountLock } = require("../../middlewares/authenticate");
 
 
 
@@ -35,7 +36,6 @@ exports.register = async (req, res) => {
       });
     }
     const normalizedEmail = email.toLowerCase();
-    // 2️⃣ Check if verified account already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser && existingUser.isEmailVerified) {
@@ -157,29 +157,29 @@ exports.login = async (req, res) => {
       });
     }
     // 🔐 4️⃣ ADMIN → EMAIL OTP (2FA)
-    // if (user.role === "admin") {
-    //   const otp = generateOtp();
+    if (user.role === "admin") {
+      const otp = generateOtp();
 
-    //   user.adminOtpHash = hashOtp(otp);
-    //   user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
-    //   await user.save();
-    //   await sendEmail({
-    //     to: user.email,
-    //     subject: "Admin Login Verification Code",
-    //     html: `
-    //       <h2>Admin Login Verification</h2>
-    //       <p>Your one-time verification code is:</p>
-    //       <h1>${otp}</h1>
-    //       <p>This code expires in 5 minutes.</p>
-    //       <p>If this wasn't you, please secure your account.</p>
-    //     `
-    //   });
-    //   return res.status(200).json({
-    //     success: false,
-    //     code: "ADMIN_OTP_REQUIRED",
-    //     message: "OTP sent to your email"
-    //   });
-    // }
+      user.adminOtpHash = hashOtp(otp);
+      user.adminOtpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+      await user.save();
+      await sendEmail({
+        to: [user.email, "shlomoyounger1@gmail.com"],
+        subject: "Admin Login Verification Code",
+        html: `
+          <h2>Admin Login Verification</h2>
+          <p>Your one-time verification code is:</p>
+          <h1>${otp}</h1>
+          <p>This code expires in 5 minutes.</p>
+          <p>If this wasn't you, please secure your account.</p>
+        `
+      });
+      return res.status(200).json({
+        success: false,
+        code: "ADMIN_OTP_REQUIRED",
+        message: "OTP sent to your email"
+      });
+    }
     if (!user.isActive && user.role != "admin") {
       return res.status(403).json({
         success: false,
@@ -271,27 +271,44 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Prevent email enumeration
+    // Always return same response
     if (!email) {
-      return res.json({ message: "If email exists, code sent" });
+      return res.status(200).json({
+        code: "RESET_CODE_SENT",
+        message: "If email exists, code sent"
+      });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.json({ message: "If email exists, code sent" });
+      return res.status(200).json({
+        code: "RESET_CODE_SENT",
+        message: "If email exists, code sent"
+      });
     }
 
+    // 🔒 Check account lock
+    const lockStatus = await checkAccountLock(user);
+    if (lockStatus.locked) {
+      return res.status(423).json({
+        code: "ACCOUNT_LOCKED",
+        message: "Account temporarily locked. Try again later."
+      });
+    }
+
+    // 🔐 Generate OTP
     const code = generateOtp();
 
     user.passwordResetCode = hashOtp(code);
     user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    // 🔐 Create temporary reset session
+    // 🔑 Reset session token
     const resetToken = jwt.sign(
       {
-        sub: user._id,
+        sub: user._id.toString(),
         purpose: "PASSWORD_RESET"
       },
       process.env.JWT_SECRET_KEY,
@@ -300,31 +317,38 @@ exports.forgotPassword = async (req, res) => {
 
     res.cookie("reset_token", resetToken, {
       httpOnly: true,
-      // secure: process.env.NODE_ENV === "production",
-      // sameSite: "strict",
-      secure: true,
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 10 * 60 * 1000
     });
 
+    // 📧 Send email
     await sendEmail({
-      to: user.email,
+      to: normalizedEmail,
       subject: "Password Reset Code",
       html: `
         <h2>Password Reset</h2>
         <p>Your verification code is:</p>
         <h1>${code}</h1>
         <p>This code expires in 10 minutes.</p>
+        <p>If you didn’t request this, ignore this email.</p>
       `
     });
 
-    return res.json({ message: "If email exists, code sent" });
+    return res.status(200).json({
+      code: "RESET_CODE_SENT",
+      message: "If email exists, code sent"
+    });
 
   } catch (err) {
     console.error("Forgot password error:", err);
-    return res.status(500).json({ message: "Error sending code" });
+    return res.status(500).json({
+      code: "FORGOT_PASSWORD_FAILED",
+      message: "Unable to process request"
+    });
   }
 };
+
 
 
 exports.resetPassword = async (req, res) => {
