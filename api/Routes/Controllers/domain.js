@@ -347,8 +347,8 @@ exports.toggleChat = async (req, res) => {
 
  res.json({
   message: domain.isChatActive
-    ? "Chat is now active. Buyers will be able to view your email address on the Connect in Buy page."
-    : "Chat is inactiveZ. Buyer communication is limited to the landing page.",
+    ? "Chat has been enabled. Buyer inquiries will be routed to your secondary email, or your primary email if a secondary email is not configured."
+    : "Chat is inactive. Buyer communication is limited to the landing page.",
   isChatActive: domain.isChatActive
 });
 
@@ -513,7 +513,7 @@ exports.getHiddenDomains = async (req, res) => {
     const MAX_ALL_LIMIT = 3000;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const fetchAll = req.query.all === 'true';
+    const fetchAll = req.query.all === "true";
 
     const skip = (page - 1) * limit;
     const filter = { isHidden: false, status: "Pass" };
@@ -521,10 +521,13 @@ exports.getHiddenDomains = async (req, res) => {
     let query = domainSchema
       .find(filter)
       .select("_id domain isChatActive finalUrl userId createdAt")
-      .populate("userId", "name")
+      .populate(
+        "userId",
+        "name email secondaryEmail" // ✅ fetch both emails
+      )
       .sort({ createdAt: -1 });
 
-    // ✅ SAFE ALL MODE
+    // SAFE ALL MODE
     if (fetchAll) {
       query = query.limit(MAX_ALL_LIMIT);
     } else {
@@ -534,15 +537,22 @@ exports.getHiddenDomains = async (req, res) => {
     const domainsEncrypted = await query.lean();
     const total = await domainSchema.countDocuments(filter);
 
-    const domains = domainsEncrypted.map(d => ({
-      domainId: d._id,
-      domain: decryptData(d.domain),
-      user: {
-        name: d.userId?.name || "Anonymous"
-      },
-      isChatActive: d.isChatActive,
-      finalUrl: d.finalUrl || null
-    }));
+    const domains = domainsEncrypted.map((d) => {
+      const primaryEmail = d.userId?.email || null;
+      const secondaryEmail = d.userId?.secondaryEmail || null;
+
+      return {
+        domainId: d._id,
+        domain: decryptData(d.domain),
+        user: {
+          id: d.userId?._id,
+          name: d.userId?.name || "Anonymous",
+          email: secondaryEmail || primaryEmail // ✅ fallback logic
+        },
+        isChatActive: d.isChatActive,
+        finalUrl: d.finalUrl || null
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -562,6 +572,7 @@ exports.getHiddenDomains = async (req, res) => {
     });
   }
 };
+
 
 
 exports.promoteDomain = async (req, res) => {
