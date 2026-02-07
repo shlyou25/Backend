@@ -239,7 +239,6 @@ You can add only ${allowedDomains - existingCount} more.`,
       });
     }
 
-    /* ------------------ INSERT DOMAINS ------------------ */
     const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
       (r) => {
         const original = lookupMap.get(r.domain);
@@ -260,7 +259,6 @@ You can add only ${allowedDomains - existingCount} more.`,
       await domainSchema.insertMany(docs);
     }
 
-    /* ------------------ RESPONSE ------------------ */
     return res.status(200).json({
       message: "Domain processing completed.",
       added: passDomains.map((d) => d.domain),
@@ -333,6 +331,41 @@ exports.toggleHide = async (req, res) => {
   });
 };
 
+exports.bulkToggleHide = async (req, res) => {
+  try {
+    const { ids, value } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(ids) || typeof value !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "ids (array) and value (boolean) are required"
+      });
+    }
+
+    const result = await domainSchema.updateMany(
+      { _id: { $in: ids }, userId },
+      { $set: { isHidden: value } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: value
+        ? "Domains hidden successfully"
+        : "Domains unhidden successfully",
+      updatedCount: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error("bulkToggleHide error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update domain visibility"
+    });
+  }
+};
+
+
 exports.toggleChat = async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
@@ -353,6 +386,41 @@ exports.toggleChat = async (req, res) => {
 });
 
 };
+
+exports.bulkToggleChat = async (req, res) => {
+  try {
+    const { ids, value } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(ids) || typeof value !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "ids (array) and value (boolean) are required"
+      });
+    }
+
+    const result = await domainSchema.updateMany(
+      { _id: { $in: ids }, userId },
+      { $set: { isChatActive: value } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: value
+        ? "Chat enabled for selected domains"
+        : "Chat disabled for selected domains",
+      updatedCount: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error("bulkToggleChat error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update chat status"
+    });
+  }
+};
+
 
 exports.AdmindeleteDomain = async (req, res) => {
   try {
@@ -815,9 +883,6 @@ exports.getAllDomains = async (req, res) => {
   }
 };
 
-
-
-
 exports.getAllPromotedDomains = async (req, res) => {
   try {
     const domains = await domainSchema
@@ -935,12 +1000,6 @@ exports.changeDomainStatus = async (req, res) => {
   }
 };
 
-
-
-
-// GET /domain/search
-
-// controllers/domain.cont
 exports.serachDomain = async (req, res) => {
   try {
     const search = (req.query.search || "").trim().toLowerCase();

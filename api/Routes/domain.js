@@ -27,6 +27,17 @@ router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.re
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);
 router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.AdmindeleteDomain);
 
+router.patch(
+  '/bulk-toggle-hide',
+  authenticate,
+  domainController.bulkToggleHide
+);
+
+router.patch(
+  '/bulk-toggle-chat',
+  authenticate,
+  domainController.bulkToggleChat
+);
 
 
 router.delete('/bulk-delete',authenticate,domainController.deleteBulkDomains);
