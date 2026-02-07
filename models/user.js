@@ -81,10 +81,6 @@ const userSchema = new mongoose.Schema(
     adminOtpExpires: {
       type: Date
     },
-    isActive: {
-      type: Boolean,
-      default: false,
-    },
     // User schema (ADD THIS)
     featureBalance: {
       type: Number,
@@ -96,7 +92,7 @@ const userSchema = new mongoose.Schema(
     ],
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true
     },
 
