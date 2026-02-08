@@ -27,7 +27,7 @@ exports.register = async (req, res) => {
       });
     }
     const passwordRegex =
-      /^(?=.*[A-Z])(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  /^(?=.*[A-Z])(?=.*[^\w\s]).{8,}$/;
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         code: "WEAK_PASSWORD",
