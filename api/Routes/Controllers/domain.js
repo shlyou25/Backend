@@ -612,6 +612,7 @@ exports.getHiddenDomains = async (req, res) => {
       return {
         domainId: d._id,
         domain: decryptData(d.domain),
+        createdAt:d.createdAt,
         user: {
           id: d.userId?._id,
           name: d.userId?.name || "Anonymous",
