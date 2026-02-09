@@ -7,34 +7,14 @@ exports.subscribe = async (req, res) => {
     let userId = null;
     if (req.user?.id) {
       const user = await User.findById(req.user.id).select(
-        "email isActive isEmailVerified"
+        "email"
       );
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid user",
-        });
-      }
-      if (!user.isActive) {
-        return res.status(403).json({
-          success: false,
-          message: "User account is inactive",
-        });
-      }
-      if (!user.isEmailVerified) {
-        return res.status(403).json({
-          success: false,
-          message: "Please verify your email first",
-        });
-      }
-
       email = user.email;
       userId = user._id;
     }
     if (!email) {
       email = req.body.email;
     }
-
     if (!email) {
       return res.status(400).json({
         success: false,
