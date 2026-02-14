@@ -6,26 +6,31 @@ const domainSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+
     domainSearch: {
       type: String,
       index: true,
-      select: false // 👈 security best practice
+      select: false
     },
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true
     },
+
     status: {
       type: String,
       enum: ["Pass", "Fail", "Manual Review"],
       index: true
     },
+
     finalUrl: {
-      type: String,          // ✅ MUST EXIST
+      type: String,
       default: null
     },
+
     isChatActive: {
       type: Boolean,
       default: true,
@@ -37,23 +42,21 @@ const domainSchema = new mongoose.Schema(
       default: false,
       index: true
     },
+
     isPromoted: {
       type: Boolean,
       default: false,
       index: true
     },
+
     promotionPriority: {
       type: Number,
-      unique: true,        // 🚨 GLOBAL uniqueness
-      sparse: true,        // allows multiple nulls
-      index: true
+      sparse: true
     }
   },
   { timestamps: true }
 );
-/**
- * ✅ UNIQUE ONLY WHEN isPromoted = true
- */
+
 domainSchema.index(
   { promotionPriority: 1 },
   {
@@ -65,4 +68,6 @@ domainSchema.index(
   }
 );
 
-module.exports = mongoose.model("Domain", domainSchema);
+module.exports =
+  mongoose.models.Domain ||
+  mongoose.model("Domain", domainSchema);

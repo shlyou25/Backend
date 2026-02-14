@@ -9,31 +9,17 @@ const communicationSchema = new mongoose.Schema(
       index: true
     },
 
-    buyerEmail: {
-      type: String,
+    buyerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: true,
-      lowercase: true,
       index: true
     },
 
-    sellerEmail: {
-      type: String,
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       required: true,
-      lowercase: true,
-      index: true
-    },
-
-    buyerProxy: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true
-    },
-
-    sellerProxy: {
-      type: String,
-      required: true,
-      unique: true,
       index: true
     },
 
@@ -43,20 +29,20 @@ const communicationSchema = new mongoose.Schema(
       index: true
     },
 
-    expiresAt: {
+    lastMessageAt: {
       type: Date,
-      required: true
+      default: Date.now,
+      index: true
     }
   },
   { timestamps: true }
 );
 
-/**
- * Auto-delete expired proxy conversations
- */
 communicationSchema.index(
-  { expiresAt: 1 },
-  { expireAfterSeconds: 0 }
+  { domainId: 1, buyerId: 1, sellerId: 1 },
+  { unique: true }
 );
 
-module.exports = mongoose.model("Communication", communicationSchema);
+module.exports =
+  mongoose.models.Communication ||
+  mongoose.model("Communication", communicationSchema);
