@@ -284,7 +284,7 @@ exports.getdomainbyuserid = async (req, res) => {
     const userId = req.user.id;
     const domainsEncrypted = await domainSchema
       .find({ userId })
-      .select("_id domain isChatActive isHidden createdAt finalUrl status")
+      .select("_id domain isChatActive isHidden createdAt finalUrl status isMessageNotificationEnabled")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -295,9 +295,9 @@ exports.getdomainbyuserid = async (req, res) => {
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
       createdAt: d.createdAt,
+      isMessageNotificationEnabled:d.isMessageNotificationEnabled,
       finalUrl: d.finalUrl
     }));
-
     res.status(200).json({
       status: true,
       count: domains.length,
@@ -311,7 +311,6 @@ exports.getdomainbyuserid = async (req, res) => {
     });
   }
 };
-
 
 exports.toggleHide = async (req, res) => {
   const { id } = req.params;
