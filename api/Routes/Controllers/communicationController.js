@@ -30,6 +30,8 @@ exports.startConversation = async (req, res) => {
     const buyerEmail = buyer.email;
     const domain = await Domain.findById(domainId)
       .select("userId domain");
+    const decryptedDomain = decryptData(domain.domain);
+
 
     if (!domain || !domain.userId) {
       return res.status(404).json({ message: "Domain or seller not found" });
@@ -58,7 +60,7 @@ exports.startConversation = async (req, res) => {
     if (sendCopy === true) {
       await sendEmail({
         to: buyerEmail,
-        subject: `Copy of your message about ${domain.domain}`,
+        subject: `Copy of your message about ${decryptedDomain}`,
         html: `
           <p>This is a copy of your message sent on <strong>Domz</strong> regarding:</p>
           <blockquote>${message}</blockquote>
@@ -129,7 +131,7 @@ exports.getInbox = async (req, res) => {
 
 exports.getMessages = async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  const userId = req.user.id; 
 
 
   const communication = await Communication.findById(id);
