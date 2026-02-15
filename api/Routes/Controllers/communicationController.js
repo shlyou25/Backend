@@ -147,8 +147,6 @@ exports.getMessages = async (req, res) => {
   if (!communication) {
     return res.status(404).json({ message: "Conversation not found" });
   }
-
-  // Access control
   if (
     communication.buyerId.toString() !== userId &&
     communication.sellerId.toString() !== userId
@@ -202,7 +200,6 @@ exports.replyToConversation = async (req, res) => {
     message: message.trim()
   });
 
-  // ✅ Notify seller on buyer reply
   if (
     role === "buyer" &&
     communication.domainId?.isMessageNotificationEnabled &&
