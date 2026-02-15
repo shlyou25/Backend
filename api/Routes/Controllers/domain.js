@@ -420,6 +420,23 @@ exports.bulkToggleChat = async (req, res) => {
     });
   }
 };
+exports.toggleMessageNotification = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const domain = await domainSchema.findOne({ _id: id, userId });
+  if (!domain) {
+    return res.status(404).json({ message: "Domain not found" });
+  }
+
+  domain.isMessageNotificationEnabled = !domain.isMessageNotificationEnabled;
+  await domain.save();
+
+  res.json({
+    message: "Message notification preference updated",
+    isMessageNotificationEnabled: domain.isMessageNotificationEnabled
+  });
+};
 
 
 exports.AdmindeleteDomain = async (req, res) => {

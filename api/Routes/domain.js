@@ -16,6 +16,8 @@ router.get("/search", domainController.serachDomain);
 router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);  
 router.get('/getallpromoteddomain',authenticate,isAdmin,domainController.getAllPromotedDomains);
 
+router.patch("/:id/toggle-message-notification",authenticate,domainController.toggleMessageNotification);
+
 
 
 // DOMAIN PRIORITY & PROMOTION (ADMIN ONLY)

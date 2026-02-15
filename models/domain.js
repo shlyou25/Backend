@@ -36,7 +36,11 @@ const domainSchema = new mongoose.Schema(
       default: true,
       index: true
     },
-
+    isMessageNotificationEnabled: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
     isHidden: {
       type: Boolean,
       default: false,

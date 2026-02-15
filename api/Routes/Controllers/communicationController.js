@@ -29,10 +29,9 @@ exports.startConversation = async (req, res) => {
     }
     const buyerEmail = buyer.email;
     const domain = await Domain.findById(domainId)
-      .select("userId domain");
+      .select("userId domain isMessageNotificationEnabled")
+      .populate("userId", "email");
     const decryptedDomain = decryptData(domain.domain);
-
-
     if (!domain || !domain.userId) {
       return res.status(404).json({ message: "Domain or seller not found" });
     }
@@ -57,6 +56,16 @@ exports.startConversation = async (req, res) => {
     communication.lastMessageAt = new Date();
     await communication.save();
 
+    if (domain.isMessageNotificationEnabled) {
+      await sendEmail({
+        to: domain.userId.email,
+        subject: `Notification for  ${decryptedDomain}`,
+        html: `
+      <p>You have received a new message regarding your domain <strong>${decryptedDomain}</strong>.</p>
+      <blockquote>${message}</blockquote>
+      <p>Please sign in to your dashboard to view and respond to this message.</p>`
+      });
+    }
     if (sendCopy === true) {
       await sendEmail({
         to: buyerEmail,
@@ -131,7 +140,7 @@ exports.getInbox = async (req, res) => {
 
 exports.getMessages = async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id; 
+  const userId = req.user.id;
 
 
   const communication = await Communication.findById(id);
@@ -162,8 +171,6 @@ exports.getMessages = async (req, res) => {
   res.json(formatted);
 };
 
-
-
 exports.replyToConversation = async (req, res) => {
   const { id } = req.params;
   const { message } = req.body;
@@ -173,7 +180,12 @@ exports.replyToConversation = async (req, res) => {
     return res.status(400).json({ message: "Message is required" });
   }
 
-  const communication = await Communication.findById(id);
+  const communication = await Communication.findById(id)
+    .populate({
+      path: "domainId",
+      select: "domain isMessageNotificationEnabled userId",
+      populate: { path: "userId", select: "email" }
+    });
   if (!communication || !communication.isActive) {
     return res.status(404).json({ message: "Conversation closed" });
   }
@@ -189,6 +201,26 @@ exports.replyToConversation = async (req, res) => {
     senderRole: role,
     message: message.trim()
   });
+
+  // ✅ Notify seller on buyer reply
+  if (
+    role === "buyer" &&
+    communication.domainId?.isMessageNotificationEnabled &&
+    communication.domainId.userId?.email
+  ) {
+    const decryptedDomain = decryptData(
+      communication.domainId.domain
+    );
+
+    await sendEmail({
+      to: communication.domainId.userId.email,
+      subject: `Notification for ${decryptedDomain}`,
+      html: `
+      <p>You have received a new message regarding your domain <strong>${decryptedDomain}</strong>.</p>
+      <blockquote>${message}</blockquote>
+      <p>Please sign in to your dashboard to view and respond to this message.</p>`
+    });
+  }
 
   communication.lastMessageAt = new Date();
   await communication.save();
