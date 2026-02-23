@@ -13,7 +13,6 @@ const { checkAccountLock } = require("../../middlewares/authenticate");
 exports.register = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
-    // 1️⃣ Validate input
     if (!terms) {
       return res.status(400).json({
         code: "TERMS_REQUIRED",
@@ -32,7 +31,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({
         code: "WEAK_PASSWORD",
         message:
-          "Password must be at least 8 characters, 1 uppercase & 1 special character"
+          "Password must contain at least 8 characters, including one uppercase letter and one special character"
       });
     }
     const normalizedEmail = email.toLowerCase();
@@ -44,13 +43,9 @@ exports.register = async (req, res) => {
         message: "Account already exists"
       });
     }
-
-    // 3️⃣ Generate OTP
     const otp = generateOtp();
     const otpHash = hashOtp(otp);
     const hashedPassword = await bcrypt.hash(password, 12);
-
-    // 4️⃣ Create or update unverified user
     const user = await User.findOneAndUpdate(
       { email: normalizedEmail },
       {
