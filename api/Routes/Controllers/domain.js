@@ -607,7 +607,7 @@ exports.getHiddenDomains = async (req, res) => {
       .select("_id domain isChatActive finalUrl userId createdAt")
       .populate(
         "userId",
-        "name email secondaryEmail" // ✅ fetch both emails
+        "name",
       )
       .sort({ createdAt: -1 });
 
@@ -622,8 +622,8 @@ exports.getHiddenDomains = async (req, res) => {
     const total = await domainSchema.countDocuments(filter);
 
     const domains = domainsEncrypted.map((d) => {
-      const primaryEmail = d.userId?.email || null;
-      const secondaryEmail = d.userId?.secondaryEmail || null;
+      // const primaryEmail = d.userId?.email || null;
+      // const secondaryEmail = d.userId?.secondaryEmail || null;
 
       return {
         domainId: d._id,
@@ -632,7 +632,7 @@ exports.getHiddenDomains = async (req, res) => {
         user: {
           id: d.userId?._id,
           name: d.userId?.name || "Anonymous",
-          email: secondaryEmail || primaryEmail // ✅ fallback logic
+          // email: secondaryEmail || primaryEmail // ✅ fallback logic
         },
         isChatActive: d.isChatActive,
         finalUrl: d.finalUrl || null
@@ -650,10 +650,9 @@ exports.getHiddenDomains = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get hidden domains error:", error.message);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch hidden domains"
+      message: "Failed to fetch  domains"
     });
   }
 };
@@ -848,7 +847,7 @@ exports.getAllDomains = async (req, res) => {
       .find({})
       .populate({
         path: "userId",
-        select: "name email" // ✅ only what you need
+        select: "name" 
       })
       .sort({
         isPromoted: -1,
@@ -876,11 +875,9 @@ exports.getAllDomains = async (req, res) => {
       owner: d.userId
         ? {
             name: d.userId.name,
-            email: d.userId.email
           }
         : {
             name: "Anonymous",
-            email: null
           }
     }));
 
@@ -1045,7 +1042,7 @@ exports.serachDomain = async (req, res) => {
 
     const domainsRaw = await domainSchema
       .find(query)
-      .populate({ path: "userId", select: "name email" })
+      .populate({ path: "userId", select: "name" })
       .sort({
         isPromoted: -1,
         promotionPriority: 1,
@@ -1063,8 +1060,8 @@ exports.serachDomain = async (req, res) => {
       finalUrl: d.finalUrl || null,
       createdAt: d.createdAt,
       owner: d.userId
-        ? { name: d.userId.name, email: d.userId.email }
-        : { name: "Anonymous", email: null }
+        ? { name: d.userId.name}
+        : { name: "Anonymous"}
     }));
 
     res.json({
