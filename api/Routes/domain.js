@@ -40,7 +40,11 @@ router.patch(
   authenticate,
   domainController.bulkToggleChat
 );
-
+router.patch(
+  "/:id/toggle-username",
+  authenticate,
+  domainController.toggleUserNameVisibility
+);
 
 router.delete('/bulk-delete',authenticate,domainController.deleteBulkDomains);
 router.delete('/:domainId',authenticate,domainController.deleteDomain);

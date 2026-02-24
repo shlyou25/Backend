@@ -46,6 +46,11 @@ const domainSchema = new mongoose.Schema(
       default: false,
       index: true
     },
+    isUserNameVisible: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
 
     isPromoted: {
       type: Boolean,

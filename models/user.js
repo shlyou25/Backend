@@ -21,14 +21,14 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       index: true,
-      sparse: true, // ✅ important because it's optional
+      sparse: true,
       validate: {
         validator: async function (value) {
-          if (!value) return true; // allow empty
+          if (!value) return true; 
 
           const existing = await mongoose.models.User.findOne({
             userName: value,
-            _id: { $ne: this._id } // exclude current user on update
+            _id: { $ne: this._id } 
           });
 
           return !existing;

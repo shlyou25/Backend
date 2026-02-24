@@ -278,7 +278,6 @@ You can add only ${allowedDomains - existingCount} more.`,
 };
 
 
-
 exports.getdomainbyuserid = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -364,7 +363,42 @@ exports.bulkToggleHide = async (req, res) => {
   }
 };
 
+exports.toggleUserNameVisibility = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
 
+    const domain = await domainSchema.findOneAndUpdate(
+      { _id: id, userId }, 
+      [{ $set: { isUserNameVisible: { $not: "$isUserNameVisible" } } }],
+      { new: true }
+    );
+
+    if (!domain) {
+      return res.status(404).json({
+        status: false,
+        message: "Domain not found"
+      });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: domain.isUserNameVisible
+        ? "Username visibility enabled"
+        : "Username visibility disabled",
+      data: {
+        id: domain._id,
+        isUserNameVisible: domain.isUserNameVisible
+      }
+    });
+  } catch (error) {
+    console.error("Toggle username visibility error:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Failed to update username visibility"
+    });
+  }
+};
 exports.toggleChat = async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
@@ -607,7 +641,7 @@ exports.getHiddenDomains = async (req, res) => {
       .select("_id domain isChatActive finalUrl userId createdAt")
       .populate(
         "userId",
-        "name",
+        "userName"
       )
       .sort({ createdAt: -1 });
 
@@ -622,17 +656,13 @@ exports.getHiddenDomains = async (req, res) => {
     const total = await domainSchema.countDocuments(filter);
 
     const domains = domainsEncrypted.map((d) => {
-      // const primaryEmail = d.userId?.email || null;
-      // const secondaryEmail = d.userId?.secondaryEmail || null;
-
       return {
         domainId: d._id,
         domain: decryptData(d.domain),
         createdAt:d.createdAt,
         user: {
           id: d.userId?._id,
-          name: d.userId?.name || "Anonymous",
-          // email: secondaryEmail || primaryEmail // ✅ fallback logic
+          userName: d.userId?.userName || "Anonymous",
         },
         isChatActive: d.isChatActive,
         finalUrl: d.finalUrl || null
