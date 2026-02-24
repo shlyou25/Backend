@@ -628,61 +628,51 @@ exports.deleteBulkDomains = async (req, res) => {
 
 exports.getHiddenDomains = async (req, res) => {
   try {
-    const MAX_ALL_LIMIT = 3000;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const fetchAll = req.query.all === "true";
+    const MAX_LIMIT = 500; // ✅ hard cap
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+
+    // enforce safe limit
+    let limit = parseInt(req.query.limit) || 10;
+    if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
     const skip = (page - 1) * limit;
     const filter = { isHidden: false, status: "Pass" };
 
-    let query = domainSchema
+    const query = domainSchema
       .find(filter)
       .select("_id domain isChatActive finalUrl userId createdAt")
-      .populate(
-        "userId",
-        "userName"
-      )
-      .sort({ createdAt: -1 });
-
-    // SAFE ALL MODE
-    if (fetchAll) {
-      query = query.limit(MAX_ALL_LIMIT);
-    } else {
-      query = query.skip(skip).limit(limit);
-    }
+      .populate("userId", "userName")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
     const domainsEncrypted = await query.lean();
     const total = await domainSchema.countDocuments(filter);
 
-    const domains = domainsEncrypted.map((d) => {
-      return {
-        domainId: d._id,
-        domain: decryptData(d.domain),
-        createdAt:d.createdAt,
-        user: {
-          id: d.userId?._id,
-          userName: d.userId?.userName || "Anonymous",
-        },
-        isChatActive: d.isChatActive,
-        finalUrl: d.finalUrl || null
-      };
-    });
+    const domains = domainsEncrypted.map((d) => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      createdAt: d.createdAt,
+      user: {
+        id: d.userId?._id,
+        userName: d.userId?.userName || "Anonymous",
+      },
+      isChatActive: d.isChatActive,
+      finalUrl: d.finalUrl || null,
+    }));
 
     return res.status(200).json({
       success: true,
       domains,
       total,
       page,
-      totalPages: fetchAll ? 1 : Math.ceil(total / limit),
-      capped: fetchAll && total > MAX_ALL_LIMIT,
-      capLimit: MAX_ALL_LIMIT
+      totalPages: Math.ceil(total / limit),
+      limit, // ✅ helpful for frontend
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch  domains"
+      message: "Failed to fetch domains",
     });
   }
 };
