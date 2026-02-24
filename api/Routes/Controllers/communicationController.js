@@ -6,18 +6,6 @@ const User = require("../../../models/user");
 const { sendEmail } = require("../../utils/sendEmail");
 const { decryptData } = require("../../middlewares/crypto");
 
-/**
- * ===============================
- * START CONVERSATION
- * ===============================
- */
-
-
-/**
- * ===============================
- * GET INBOX
- * ===============================
- */
 exports.getInbox = async (req, res) => {
   try {
     const userId = req.user.id;

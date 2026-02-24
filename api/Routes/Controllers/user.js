@@ -4,7 +4,7 @@ const Plan = require("../../../models/packages");
 exports.getallUsers = async (req, res) => {
   try {
     const users = await User.find({ role: "user" })
-      .select("name email isActive createdAt")
+      .select("name email isActive createdAt userName")
       .lean();
 
     if (!users.length) {
@@ -67,7 +67,7 @@ exports.getuserbyid = async (req, res) => {
     const userId = req.user.id;
 
     const userInfo = await User.findById(userId)
-      .select("name email phoneNumber secondaryEmail")
+      .select("name email phoneNumber userName")
       .lean();
 
     if (!userInfo) {
@@ -93,41 +93,54 @@ exports.getuserbyid = async (req, res) => {
 
 exports.updateuserinfo = async (req, res) => {
   const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
-  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
 
   try {
     const userId = req.user.id;
-    let { name, phoneNumber, secondaryEmail } = req.body;
-
-    // Trim inputs
+    let  { name, phoneNumber, userName } = req.body;
     if (name) name = name.trim();
     if (phoneNumber) phoneNumber = phoneNumber.trim();
-    if (secondaryEmail) secondaryEmail = secondaryEmail.trim().toLowerCase();
+    if (userName) userName = userName.trim().toLowerCase();
     if (phoneNumber) {
       if (!PHONE_REGEX.test(phoneNumber)) {
         return res.status(400).json({
           status: false,
-          message: "Invalid phone number. Please use international format (e.g. +1XXXXXXXXXX)."
+          message:
+            "Invalid phone number. Please use international format (e.g. +1XXXXXXXXXX)."
         });
       }
-      const existingUser = await User.findOne({
+
+      const existingPhone = await User.findOne({
         phoneNumber,
         _id: { $ne: userId }
       });
 
-      if (existingUser) {
+      if (existingPhone) {
         return res.status(409).json({
           status: false,
-          message: "This phone number is already associated with another account."
+          message:
+            "This phone number is already associated with another account."
         });
       }
     }
-
-    if (secondaryEmail) {
-      if (!EMAIL_REGEX.test(secondaryEmail)) {
+    if (userName) {
+      if (!USERNAME_REGEX.test(userName)) {
         return res.status(400).json({
           status: false,
-          message: "Invalid secondary email address."
+          message:
+            "Username must be 3-20 characters, lowercase letters, numbers, or underscore only."
+        });
+      }
+
+      const existingUsername = await User.findOne({
+        userName,
+        _id: { $ne: userId }
+      });
+
+      if (existingUsername) {
+        return res.status(409).json({
+          status: false,
+          message: "Username is already taken."
         });
       }
     }
@@ -137,11 +150,11 @@ exports.updateuserinfo = async (req, res) => {
         $set: {
           ...(name && { name }),
           ...(phoneNumber && { phoneNumber }),
-          ...(secondaryEmail && { secondaryEmail })
+          ...(userName && { userName }),
         }
       },
       { new: true, runValidators: true }
-    ).select("name email secondaryEmail phoneNumber");
+    ).select("name email phoneNumber userName");
 
     if (!updatedUser) {
       return res.status(404).json({
@@ -150,7 +163,7 @@ exports.updateuserinfo = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       status: true,
       message: "User profile updated successfully.",
       user: updatedUser
@@ -158,14 +171,20 @@ exports.updateuserinfo = async (req, res) => {
 
   } catch (error) {
     console.error("Update user error:", error);
-    res.status(500).json({
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      return res.status(409).json({
+        status: false,
+        message: `${field} already exists`
+      });
+    }
+
+    return res.status(500).json({
       status: false,
       message: "An error occurred while updating user information."
     });
   }
 };
-
-
 
 exports.toggleUserStatus = async (req, res) => {
   try {

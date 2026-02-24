@@ -14,19 +14,26 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       index: true
     },
-    secondaryEmail: {
+    userName: {
       type: String,
+      required: false,
+      unique: true,
       lowercase: true,
       trim: true,
-      unique: true,
-      sparse: true, 
       index: true,
+      sparse: true, // ✅ important because it's optional
       validate: {
-        validator: function (value) {
-          return !value || value !== this.email;
+        validator: async function (value) {
+          if (!value) return true; // allow empty
+
+          const existing = await mongoose.models.User.findOne({
+            userName: value,
+            _id: { $ne: this._id } // exclude current user on update
+          });
+
+          return !existing;
         },
-        message:
-          "Secondary email must be different from the primary email. The primary email is used for sales interactions when chat is enabled."
+        message: "Username already taken"
       }
     },
     phoneNumber: {
@@ -123,7 +130,7 @@ const userSchema = new mongoose.Schema(
     // --- rest ---
 
   },
-  
+
   { timestamps: true }
 );
 
