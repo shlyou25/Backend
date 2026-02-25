@@ -294,7 +294,7 @@ exports.getdomainbyuserid = async (req, res) => {
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
       createdAt: d.createdAt,
-      isMessageNotificationEnabled:d.isMessageNotificationEnabled,
+      isMessageNotificationEnabled: d.isMessageNotificationEnabled,
       finalUrl: d.finalUrl
     }));
     res.status(200).json({
@@ -369,7 +369,7 @@ exports.toggleUserNameVisibility = async (req, res) => {
     const { id } = req.params;
 
     const domain = await domainSchema.findOneAndUpdate(
-      { _id: id, userId }, 
+      { _id: id, userId },
       [{ $set: { isUserNameVisible: { $not: "$isUserNameVisible" } } }],
       { new: true }
     );
@@ -411,12 +411,12 @@ exports.toggleChat = async (req, res) => {
   domain.isChatActive = !domain.isChatActive;
   await domain.save();
 
- res.json({
-  message: domain.isChatActive
-    ? "Chat has been enabled. Buyer inquiries will be routed to your secondary email, or your primary email if a secondary email is not configured."
-    : "Chat is inactive. Buyer communication is limited to the landing page.",
-  isChatActive: domain.isChatActive
-});
+  res.json({
+    message: domain.isChatActive
+      ? "Chat has been enabled. Buyer inquiries will be routed to your secondary email, or your primary email if a secondary email is not configured."
+      : "Chat is inactive. Buyer communication is limited to the landing page.",
+    isChatActive: domain.isChatActive
+  });
 
 };
 
@@ -640,7 +640,7 @@ exports.getHiddenDomains = async (req, res) => {
 
     const query = domainSchema
       .find(filter)
-      .select("_id domain isChatActive finalUrl userId createdAt")
+      .select("_id domain isChatActive finalUrl userId createdAt isUserNameVisible")
       .populate("userId", "userName")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -655,7 +655,10 @@ exports.getHiddenDomains = async (req, res) => {
       createdAt: d.createdAt,
       user: {
         id: d.userId?._id,
-        userName: d.userId?.userName || "Anonymous",
+        userName:
+          d.isUserNameVisible === false
+            ? "Anonymous"
+            : d.userId?.userName || "Anonymous",
       },
       isChatActive: d.isChatActive,
       finalUrl: d.finalUrl || null,
@@ -867,7 +870,7 @@ exports.getAllDomains = async (req, res) => {
       .find({})
       .populate({
         path: "userId",
-        select: "name" 
+        select: "name"
       })
       .sort({
         isPromoted: -1,
@@ -894,11 +897,11 @@ exports.getAllDomains = async (req, res) => {
       createdAt: d.createdAt, // ✅ added
       owner: d.userId
         ? {
-            name: d.userId.name,
-          }
+          name: d.userId.name,
+        }
         : {
-            name: "Anonymous",
-          }
+          name: "Anonymous",
+        }
     }));
 
     return res.status(200).json({
@@ -1080,8 +1083,8 @@ exports.serachDomain = async (req, res) => {
       finalUrl: d.finalUrl || null,
       createdAt: d.createdAt,
       owner: d.userId
-        ? { name: d.userId.name}
-        : { name: "Anonymous"}
+        ? { name: d.userId.name }
+        : { name: "Anonymous" }
     }));
 
     res.json({
