@@ -26,7 +26,7 @@ exports.register = async (req, res) => {
       });
     }
     const passwordRegex =
-  /^(?=.*[A-Z])(?=.*[^\w\s]).{8,}$/;
+      /^(?=.*[A-Z])(?=.*[^\w\s]).{8,}$/;
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
         code: "WEAK_PASSWORD",
@@ -195,13 +195,14 @@ exports.login = async (req, res) => {
       }
     );
 
-    const isProd = process.env.NODE_ENV === "production";
+    // const isProd = process.env.NODE_ENV === "production";
+    
     res.cookie("token", token, {
-      path: "/",
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      maxAge: 60 * 60 * 1000
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 60 * 60 * 1000,
     });
 
     return res.status(200).json({ code: "Logged In", message: "Login successful" });
