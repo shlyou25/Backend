@@ -26,7 +26,8 @@ const allowedOrigins = [
   "http://localhost:3000",
   "https://domz.com",
   "https://domzdomain.netlify.app",
-  "https://www.domzdomain.netlify.app"
+  "https://www.domzdomain.netlify.app",
+  "https://domzmarket.netlify.app"
 ];
 
 const corsOptions = {
