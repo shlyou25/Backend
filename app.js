@@ -25,9 +25,7 @@ app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://domz.com",
-  "https://domzdomain.netlify.app",
-  "https://www.domzdomain.netlify.app",
-  "https://domzmarket.netlify.app"
+  "https://domzfrontend-git-main-shlomoyounger1-8381s-projects.vercel.app"
 ];
 
 const corsOptions = {
