@@ -25,6 +25,7 @@ app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://domz.com",
+  "https://www.domz.com",
   "https://domzfrontend-git-main-shlomoyounger1-8381s-projects.vercel.app"
 ];
 
