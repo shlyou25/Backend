@@ -98,16 +98,19 @@ exports.login = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
 
+    // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
     }
     if (!email || !password || !validator.isEmail(email)) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    // 2️⃣ Fetch user
     const user = await User.findOne({ email: email.toLowerCase() })
       .select("+password email role tokenVersion mustChangePassword isEmailVerified isActive");
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
+
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (!user.isEmailVerified) {
@@ -118,6 +121,7 @@ exports.login = async (req, res) => {
       });
     }
 
+    // 3️⃣ Forced password change
     if (user.mustChangePassword) {
       const tempToken = jwt.sign(
         {
@@ -178,11 +182,7 @@ exports.login = async (req, res) => {
       });
     }
     // 5️⃣ NORMAL USER → ISSUE JWT
-
-    const isProd = process.env.NODE_ENV === "production";
-
-    // ACCESS TOKEN (short)
-    const accessToken = jwt.sign(
+    const token = jwt.sign(
       {
         sub: user._id.toString(),
         role: user.role,
@@ -195,46 +195,17 @@ exports.login = async (req, res) => {
       }
     );
 
-    // REFRESH TOKEN (long)
-    const refreshToken = jwt.sign(
-      {
-        sub: user._id.toString(),
-        tokenVersion: user.tokenVersion,
-        type: "refresh"
-      },
-      process.env.JWT_REFRESH_SECRET,
-      {
-        expiresIn: "7d"
-      }
-    );
-
-    // ✅ SAVE refresh token in DB
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    // ✅ ACCESS TOKEN COOKIE
-    res.cookie("token", accessToken, {
+    // const isProd = process.env.NODE_ENV === "production";
+    
+    res.cookie("token", token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
+      secure: true,
+      sameSite: "none",
       path: "/",
-      maxAge: 60 * 60 * 1000
+      maxAge: 60 * 60 * 1000,
     });
 
-    // ✅ REFRESH TOKEN COOKIE
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    return res.status(200).json({
-      success: true,
-      code: "LOGGED_IN",
-      message: "Login successful"
-    });
+    return res.status(200).json({ code: "Logged In", message: "Login successful" });
 
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
@@ -440,69 +411,50 @@ exports.resetPassword = async (req, res) => {
 exports.verifyAdminOtp = async (req, res) => {
   try {
     const { otp } = req.body;
-
     if (!otp) {
       return res.status(400).json({ message: "Invalid request" });
     }
 
     const user = await User.findOne({
       role: "admin",
-      adminOtpHash: hashOtp(String(otp)),
+      adminOtpHash: hashOtp(String(otp)), // ✅ FIX HERE
       adminOtpExpires: { $gt: Date.now() }
-    }).select("+adminOtpHash +refreshToken tokenVersion role");
+    }).select("+adminOtpHash");
 
     if (!user) {
       return res.status(401).json({ message: "Invalid or expired OTP" });
     }
+
+    // Clear OTP
     user.adminOtpHash = undefined;
     user.adminOtpExpires = undefined;
+    await user.save();
 
-    const isProd = process.env.NODE_ENV === "production";
-
-    const accessToken = jwt.sign(
+    // ✅ ISSUE JWT
+    const token = jwt.sign(
       {
         sub: user._id.toString(),
         role: user.role,
         tokenVersion: user.tokenVersion
       },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-    const refreshToken = jwt.sign(
       {
-        sub: user._id.toString(),
-        tokenVersion: user.tokenVersion,
-        type: "refresh"
-      },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d" }
+        expiresIn: "1h",
+        algorithm: "HS256"
+      }
     );
 
-    user.refreshToken = refreshToken;
-    await user.save();
+    const isProd = process.env.NODE_ENV === "production";
 
-    // clear old cookies (safe)
-    res.clearCookie("token");
-    res.clearCookie("refresh_token");
-
-    // ✅ ACCESS COOKIE
-    res.cookie("token", accessToken, {
+    res.cookie("token", token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
+      // secure: isProd,
+      // sameSite: isProd ? "None" : "Lax",
+      secure: true,
+      sameSite: "none",
       maxAge: 60 * 60 * 1000
     });
-
-    // ✅ REFRESH COOKIE
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
     return res.status(200).json({
-      success: true,
       message: "Admin login successful"
     });
 
