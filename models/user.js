@@ -24,11 +24,11 @@ const userSchema = new mongoose.Schema(
       sparse: true,
       validate: {
         validator: async function (value) {
-          if (!value) return true; 
+          if (!value) return true;
 
           const existing = await mongoose.models.User.findOne({
             userName: value,
-            _id: { $ne: this._id } 
+            _id: { $ne: this._id }
           });
 
           return !existing;
@@ -46,14 +46,32 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false
     },
-
     role: {
       type: String,
       enum: ["user", "admin"],
       default: "user",
       index: true
     },
-
+    refreshTokens: [
+      {
+        token: { type: String, select: false },
+        createdAt: { type: Date, default: Date.now },
+        expiresAt: { type: Date },
+        userAgent: String,
+        ip: String
+      }
+    ],
+    failedAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+      index: true
+    },
+    accountLockedUntil: {
+      type: Date,
+      select: false,
+      index: true
+    },
     isEmailVerified: {
       type: Boolean,
       default: false
