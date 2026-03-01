@@ -45,7 +45,17 @@ router.patch(
   authenticate,
   domainController.toggleUserNameVisibility
 );
+router.patch(
+  "/bulk-toggle-username",
+  authenticate,
+  domainController.bulkToggleUserNameVisibility
+);
 
+router.patch(
+  "/bulk-toggle-message-notification",
+  authenticate,
+  domainController.bulkToggleMessageNotification
+);
 router.delete('/bulk-delete',authenticate,domainController.deleteBulkDomains);
 router.delete('/:domainId',authenticate,domainController.deleteDomain);
 

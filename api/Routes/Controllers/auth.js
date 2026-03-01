@@ -98,19 +98,16 @@ exports.login = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
 
-    // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
     }
     if (!email || !password || !validator.isEmail(email)) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    // 2️⃣ Fetch user
     const user = await User.findOne({ email: email.toLowerCase() })
       .select("+password email role tokenVersion mustChangePassword isEmailVerified isActive");
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      console.log({ email, password, terms });
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (!user.isEmailVerified) {

@@ -3,7 +3,7 @@ const { sendEmail } = require("../../utils/sendEmail");
 
 exports.handler = async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body; // ✅ EXPRESS WAY
+    const { name, email, subject, message } = req.body;
 
     if (!email || !subject || !message) {
       return res.status(400).json({

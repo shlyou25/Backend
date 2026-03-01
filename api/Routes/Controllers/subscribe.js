@@ -1,23 +1,19 @@
-const Subscriber = require('../../../models/subscribe')
+const Subscriber = require('../../../models/subscribe');
 const User = require("../../../models/user");
 const crypto = require("crypto");
-const sendEmail = require("../../utils/sendEmail"); // your mail helper
+const { sendEmail } = require("../../utils/sendEmail");
 
 exports.subscribe = async (req, res) => {
   try {
     let email = null;
     let userId = null;
     let isGuest = true;
-
-    // ✅ Logged-in user
     if (req.user?.id) {
       const user = await User.findById(req.user.id).select("email");
       email = user.email;
       userId = user._id;
       isGuest = false;
     }
-
-    // ✅ Guest email
     if (!email) {
       email = req.body.email?.toLowerCase().trim();
     }
@@ -28,11 +24,7 @@ exports.subscribe = async (req, res) => {
         message: "Email is required",
       });
     }
-
-    // 🔍 Check existing
-    const existingSubscriber = await Subscriber.findOne({
-      email,
-    });
+    const existingSubscriber = await Subscriber.findOne({ email });
 
     if (existingSubscriber?.isVerified) {
       return res.status(409).json({
@@ -40,10 +32,6 @@ exports.subscribe = async (req, res) => {
         message: "Already subscribed",
       });
     }
-
-    // ===============================
-    // ✅ LOGGED-IN USER → instant subscribe
-    // ===============================
     if (!isGuest) {
       await Subscriber.findOneAndUpdate(
         { email },
@@ -62,13 +50,8 @@ exports.subscribe = async (req, res) => {
         message: "Subscribed successfully",
       });
     }
-
-    // ===============================
-    // ✅ GUEST USER → send verification email
-    // ===============================
-
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = Date.now() + 1000 * 60 * 60 * 24; // 24 hours
+    const expires = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
     await Subscriber.findOneAndUpdate(
       { email },
@@ -81,8 +64,8 @@ exports.subscribe = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // 🔗 verification link
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-subscription?token=${token}`;
+    const verifyUrl =
+      `${process.env.BACKEND_URL}/api/subscribe/verify?token=${token}`;
 
     await sendEmail({
       to: email,
@@ -99,6 +82,7 @@ exports.subscribe = async (req, res) => {
       success: true,
       message: "Verification email sent. Please check your inbox.",
     });
+
   } catch (err) {
     console.error("Subscribe error:", err);
     return res.status(500).json({
@@ -107,6 +91,58 @@ exports.subscribe = async (req, res) => {
     });
   }
 };
+
+exports.verifySubscription = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.redirect(
+        302,
+        `${process.env.FRONTEND_URL}/verify-subscription?status=invalid`
+      );
+    }
+
+    const subscriber = await Subscriber.findOne({
+      verificationToken: token,
+      verificationExpires: { $gt: new Date() },
+    });
+
+    if (!subscriber) {
+      return res.redirect(
+        302,
+        `${process.env.FRONTEND_URL}/subscription-verified?status=expired`
+      );
+    }
+
+    if (subscriber.isVerified) {
+      return res.redirect(
+        302,
+        `${process.env.FRONTEND_URL}/subscription-verified?status=already`
+      );
+    }
+
+    subscriber.isVerified = true;
+    subscriber.verificationToken = null;
+    subscriber.verificationExpires = null;
+
+    await subscriber.save();
+
+    return res.redirect(
+      302,
+      `${process.env.FRONTEND_URL}/verify-subscription?status=success`
+    );
+
+  } catch (err) {
+    console.error("Verify subscription error:", err);
+
+    return res.redirect(
+      302,
+      `${process.env.FRONTEND_URL}/subscription-verified?status=error`
+    );
+  }
+};
+
 exports.getAllSubscribers = async (req, res) => {
   try {
     const subscribers = await Subscriber.find()

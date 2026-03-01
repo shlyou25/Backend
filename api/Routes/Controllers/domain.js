@@ -118,7 +118,7 @@ exports.adddomain = async (req, res) => {
       normalizedDomains = domains
         .split(/[\n,]+/)
         .map((d) => ({
-          domainName: d.trim().toLowerCase(),
+          domainName: d.trim(),
           url: null,
         }))
         .filter((d) => d.domainName);
@@ -127,7 +127,7 @@ exports.adddomain = async (req, res) => {
       normalizedDomains = domains
         .map((d) => {
           if (typeof d === "string") {
-            return { domainName: d.trim().toLowerCase(), url: null };
+            return { domainName: d.trim(), url: null };
           }
 
           if (
@@ -135,7 +135,7 @@ exports.adddomain = async (req, res) => {
             typeof d.domainName === "string"
           ) {
             return {
-              domainName: d.domainName.trim().toLowerCase(),
+              domainName: d.domainName.trim(),
               url:
                 typeof d.url === "string" && d.url.trim()
                   ? d.url.trim()
@@ -191,7 +191,7 @@ exports.adddomain = async (req, res) => {
     const lookupMap = new Map();
 
     for (const d of normalizedDomains) {
-      const checkerKey = d.url ? d.url : d.domainName;
+      const checkerKey = (d.url ? d.url : d.domainName).toLowerCase();
       lookupMap.set(checkerKey, d);
     }
 
@@ -207,7 +207,6 @@ exports.adddomain = async (req, res) => {
         message: "Domain verification service unavailable.",
       });
     }
-
     const results = Array.isArray(apiResponse.data?.results)
       ? apiResponse.data.results
       : [];
@@ -223,8 +222,6 @@ exports.adddomain = async (req, res) => {
 
     const existingCount = existingPlain.length;
     const totalToInsert = passDomains.length + manualDomains.length;
-
-    /* ------------------ PLAN LIMIT CHECK ------------------ */
     if (
       allowedDomains !== -1 &&
       existingCount + totalToInsert > allowedDomains
@@ -241,16 +238,18 @@ You can add only ${allowedDomains - existingCount} more.`,
 
     const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
       (r) => {
-        const original = lookupMap.get(r.domain);
+        const original = lookupMap.get(
+          (r.domain || "").toLowerCase()
+        );
 
         return {
-          domain: encryptData(original.domainName), // ✅ always domainName
+          domain: encryptData(original.domainName),
           domainSearch: original.domainName.toLowerCase(),
           userId,
           status: r.status,
           finalUrl: original.url
-            ? original.url // ✅ frontend URL
-            : r.final_url || null, // ✅ checker URL only if no frontend URL
+            ? original.url
+            : r.final_url || null,
         };
       }
     );
@@ -283,7 +282,7 @@ exports.getdomainbyuserid = async (req, res) => {
     const userId = req.user.id;
     const domainsEncrypted = await domainSchema
       .find({ userId })
-      .select("_id domain isChatActive isHidden createdAt finalUrl status isMessageNotificationEnabled")
+      .select("_id domain isChatActive isHidden createdAt finalUrl status isMessageNotificationEnabled isUserNameVisible")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -413,7 +412,7 @@ exports.toggleChat = async (req, res) => {
 
   res.json({
     message: domain.isChatActive
-      ? "Chat has been enabled. Buyer inquiries will be routed to your secondary email, or your primary email if a secondary email is not configured."
+      ? "Chat has been enabled. Buyers will be able to connect via portal"
       : "Chat is inactive. Buyer communication is limited to the landing page.",
     isChatActive: domain.isChatActive
   });
@@ -453,6 +452,41 @@ exports.bulkToggleChat = async (req, res) => {
     });
   }
 };
+
+exports.bulkToggleUserNameVisibility = async (req, res) => {
+  try {
+    const { ids, value } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(ids) || typeof value !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "ids (array) and value (boolean) are required",
+      });
+    }
+
+    const result = await domainSchema.updateMany(
+      { _id: { $in: ids }, userId },
+      { $set: { isUserNameVisible: value } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: value
+        ? "Username visibility enabled for selected domains"
+        : "Username visibility disabled for selected domains",
+      updatedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("bulkToggleUserNameVisibility error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update username visibility",
+    });
+  }
+};
+
+
 exports.toggleMessageNotification = async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
@@ -469,6 +503,39 @@ exports.toggleMessageNotification = async (req, res) => {
     message: "Message notification preference updated",
     isMessageNotificationEnabled: domain.isMessageNotificationEnabled
   });
+};
+
+exports.bulkToggleMessageNotification = async (req, res) => {
+  try {
+    const { ids, value } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(ids) || typeof value !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "ids (array) and value (boolean) are required",
+      });
+    }
+
+    const result = await domainSchema.updateMany(
+      { _id: { $in: ids }, userId },
+      { $set: { isMessageNotificationEnabled: value } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: value
+        ? "Email notifications enabled for selected domains"
+        : "Email notifications disabled for selected domains",
+      updatedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("bulkToggleMessageNotification error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update notification setting",
+    });
+  }
 };
 
 
@@ -985,26 +1052,44 @@ exports.changeDomainStatus = async (req, res) => {
      * 🔒 RULE:
      * ANY → Pass requires finalUrl
      */
-    if (status === "Pass") {
-      if (!finalUrl || typeof finalUrl !== "string") {
-        return res.status(400).json({
-          success: false,
-          message: "Final URL is required when marking domain as Pass",
-        });
-      }
+  /**
+ * ✅ RULES:
+ * Manual Review → Pass → no finalUrl required
+ * Fail → Pass → finalUrl required
+ * Pass → Fail → clear finalUrl
+ */
 
-      // URL validation
-      try {
-        new URL(finalUrl);
-      } catch {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid final URL format",
-        });
-      }
+if (status === "Pass") {
+  const previousStatus = domain.status;
 
-      domain.finalUrl = finalUrl;
+  // ❗ Fail → Pass requires URL
+  if (previousStatus === "Fail") {
+    if (!finalUrl || typeof finalUrl !== "string") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Final URL is required when moving from Fail to Pass",
+      });
     }
+
+    try {
+      new URL(finalUrl);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid final URL format",
+      });
+    }
+
+    domain.finalUrl = finalUrl;
+  }
+
+  // ✅ Manual Review → Pass (no URL required)
+  if (previousStatus === "Manual Review") {
+    // keep existing finalUrl if any
+    // do nothing
+  }
+}
 
     /**
      * Optional cleanup:
@@ -1065,28 +1150,26 @@ exports.serachDomain = async (req, res) => {
 
     const domainsRaw = await domainSchema
       .find(query)
-      .populate({ path: "userId", select: "name" })
+      .populate({ path: "userId", select: "userName" })
       .sort({
         isPromoted: -1,
         promotionPriority: 1,
         createdAt: -1
       })
-      .select("_id domain promotionPriority isPromoted status finalUrl userId createdAt")
+      .select("_id domain finalUrl userId isUserNameVisible")
       .lean();
 
     const domains = domainsRaw.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
-      isPromoted: d.isPromoted,
-      priority: d.promotionPriority ?? null,
-      status: d.status,
       finalUrl: d.finalUrl || null,
-      createdAt: d.createdAt,
-      owner: d.userId
-        ? { name: d.userId.name }
-        : { name: "Anonymous" }
+      user: {
+        userName:
+          d.isUserNameVisible === false
+            ? "Anonymous"
+            : d.userId?.userName || "Anonymous"
+      }
     }));
-
     res.json({
       success: true,
       count: domains.length,

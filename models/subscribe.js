@@ -14,24 +14,27 @@ const subscribeSchema = new mongoose.Schema(
       required: true,
       lowercase: true,
       trim: true,
+    },
+
+    emailNormalized: {
+      type: String,
+      lowercase: true,
+      trim: true,
       index: true,
     },
 
-    // ✅ NEW — verification status
     isVerified: {
       type: Boolean,
       default: false,
       index: true,
     },
 
-    // ✅ NEW — email verification token
     verificationToken: {
       type: String,
       default: null,
       index: true,
     },
 
-    // ✅ NEW — token expiry
     verificationExpires: {
       type: Date,
       default: null,
@@ -40,10 +43,21 @@ const subscribeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ Prevent duplicate verified emails
 subscribeSchema.index(
-  { email: 1 },
+  { emailNormalized: 1 },
   { unique: true, partialFilterExpression: { isVerified: true } }
 );
+
+subscribeSchema.index(
+  { verificationExpires: 1 },
+  { expireAfterSeconds: 0, partialFilterExpression: { isVerified: false } }
+);
+
+subscribeSchema.pre("save", function (next) {
+  if (this.email) {
+    this.emailNormalized = this.email.toLowerCase().trim();
+  }
+  next();
+});
 
 module.exports = mongoose.model("Subscriber", subscribeSchema);
