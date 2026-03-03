@@ -24,7 +24,8 @@ exports.getInbox = async (req, res) => {
     for (const c of conversations) {
       if (!c.domainId) continue;
 
-      const domainKey = c.domainId._id.toString();
+      const domainKey = c.domainId?._id?.toString();
+if (!domainKey) continue;
 
       if (!grouped[domainKey]) {
         grouped[domainKey] = {
@@ -34,8 +35,13 @@ exports.getInbox = async (req, res) => {
         };
       }
 
+      const buyerIdStr = c.buyerId?._id?.toString();
+      const sellerIdStr = c.sellerId?._id?.toString();
+
+      if (!buyerIdStr || !sellerIdStr) continue;
+
       const otherUser =
-        c.buyerId._id.toString() === userId ? c.sellerId : c.buyerId;
+        buyerIdStr === userId ? c.sellerId : c.buyerId;
 
       grouped[domainKey].conversations.push({
         conversationId: c._id,
