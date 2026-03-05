@@ -4,8 +4,6 @@ let isConnected = false
 const connectDB = async () => {
   try {
     if (isConnected) return
-    console.log(process.env.ConnectionString);
-    
     await mongoose.connect(process.env.ConnectionString, {
       dbName: 'AccessAnanlyser',
       autoIndex: false,

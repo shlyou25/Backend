@@ -571,6 +571,47 @@ exports.AdmindeleteDomain = async (req, res) => {
     });
   }
 };
+exports.AdminBulkDeleteDomains = async (req, res) => {
+  try {
+    const { domainIds } = req.body;
+
+    if (!domainIds || !Array.isArray(domainIds) || domainIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "domainIds are required",
+      });
+    }
+
+    const domains = await domainSchema.find({
+      _id: { $in: domainIds },
+    });
+
+    if (!domains.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No domains found",
+      });
+    }
+
+    await domainSchema.deleteMany({
+      _id: { $in: domainIds },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `${domains.length} domain(s) deleted successfully`,
+      deletedCount: domains.length,
+    });
+  } catch (error) {
+    console.error("AdminBulkDeleteDomains error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 exports.deleteDomain = async (req, res) => {
   try {
     const { domainId } = req.params;

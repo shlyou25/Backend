@@ -28,6 +28,7 @@ router.post('/promote',authenticate,isAdmin,domainController.promoteDomain);
 router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.removeDomainPriority);
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);
 router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.AdmindeleteDomain);
+router.delete("/admin/domain/bulk-delete",authenticate,isAdmin, domainController.AdminBulkDeleteDomains);
 
 router.patch(
   '/bulk-toggle-hide',
