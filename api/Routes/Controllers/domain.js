@@ -238,9 +238,8 @@ You can add only ${allowedDomains - existingCount} more.`,
 
     const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
       (r) => {
-        const original = lookupMap.get(
-          (r.domain || "").toLowerCase()
-        );
+        const original = lookupMap.get((r.domain || "").toLowerCase());
+        if (!original) return null;
 
         return {
           domain: encryptData(original.domainName),
@@ -1052,44 +1051,44 @@ exports.changeDomainStatus = async (req, res) => {
      * 🔒 RULE:
      * ANY → Pass requires finalUrl
      */
-  /**
- * ✅ RULES:
- * Manual Review → Pass → no finalUrl required
- * Fail → Pass → finalUrl required
- * Pass → Fail → clear finalUrl
- */
+    /**
+   * ✅ RULES:
+   * Manual Review → Pass → no finalUrl required
+   * Fail → Pass → finalUrl required
+   * Pass → Fail → clear finalUrl
+   */
 
-if (status === "Pass") {
-  const previousStatus = domain.status;
+    if (status === "Pass") {
+      const previousStatus = domain.status;
 
-  // ❗ Fail → Pass requires URL
-  if (previousStatus === "Fail") {
-    if (!finalUrl || typeof finalUrl !== "string") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Final URL is required when moving from Fail to Pass",
-      });
+      // ❗ Fail → Pass requires URL
+      if (previousStatus === "Fail") {
+        if (!finalUrl || typeof finalUrl !== "string") {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Final URL is required when moving from Fail to Pass",
+          });
+        }
+
+        try {
+          new URL(finalUrl);
+        } catch {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid final URL format",
+          });
+        }
+
+        domain.finalUrl = finalUrl;
+      }
+
+      // ✅ Manual Review → Pass (no URL required)
+      if (previousStatus === "Manual Review") {
+        // keep existing finalUrl if any
+        // do nothing
+      }
     }
-
-    try {
-      new URL(finalUrl);
-    } catch {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid final URL format",
-      });
-    }
-
-    domain.finalUrl = finalUrl;
-  }
-
-  // ✅ Manual Review → Pass (no URL required)
-  if (previousStatus === "Manual Review") {
-    // keep existing finalUrl if any
-    // do nothing
-  }
-}
 
     /**
      * Optional cleanup:
