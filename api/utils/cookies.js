@@ -1,12 +1,9 @@
 exports.getCookieOptions = () => {
-  const isProd = process.env.NODE_ENV === "production";
-
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    secure: true,        // required for SameSite=None
+    sameSite: "none",    // allow cross-site cookies (frontend ↔ API)
     path: "/",
-    maxAge: 10 * 60 * 1000,
-    domain: isProd ? ".domz.com" : "localhost"
+    maxAge: 10 * 60 * 1000 // 10 minutes
   };
 };
