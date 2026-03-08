@@ -7,6 +7,7 @@ const { generateOtp, hashOtp } = require("../../utils/otp");
 const { sendEmail } = require("../../utils/sendEmail");
 const { getCookieOptions } = require("../../utils/cookies");
 const { checkAccountLock } = require("../../middlewares/authenticate");
+const path = require("path");
 
 
 
@@ -453,13 +454,20 @@ exports.verifyAdminOtp = async (req, res) => {
       }
     );
 
-    const isProd = process.env.NODE_ENV === "production";
+    // const isProd = process.env.NODE_ENV === "production";
+    // res.cookie("token", token, {
+    //   httpOnly: true,
+    //   secure: true,
+    //   sameSite: "none",
+    //   path: "/",
+    //   maxAge: 60 * 60 * 1000,
+    // });
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
-      path: "/",
-      maxAge: 60 * 60 * 1000,
+      path:"/",
+      maxAge: 60 * 60 * 1000
     });
     return res.status(200).json({
       message: "Admin login successful"
