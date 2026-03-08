@@ -78,9 +78,14 @@ exports.register = async (req, res) => {
       process.env.JWT_SECRET_KEY,
       { expiresIn: "10m" }
     );
-  console.log(verifyToken);
-  
-    res.cookie("verify_token", verifyToken, getCookieOptions());
+
+    res.cookie("verify_token", verifyToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 10 * 60 * 1000
+    });
 
     return res.status(201).json({
       code: "EMAIL_OTP_SENT",
@@ -806,7 +811,7 @@ exports.verifyForgotOtp = async (req, res) => {
       process.env.JWT_SECRET_KEY,
       { expiresIn: "10m" }
     );
-const isProd = process.env.NODE_ENV === "production";
+    const isProd = process.env.NODE_ENV === "production";
     res.cookie("reset_token", verifiedToken, {
       httpOnly: true,
       secure: isProd,
