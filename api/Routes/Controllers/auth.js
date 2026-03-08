@@ -70,20 +70,21 @@ exports.register = async (req, res) => {
   `
     });
 
-    const verifyToken = jwt.sign(
-      {
-        sub: user._id.toString(),
-        purpose: "EMAIL_VERIFY"
-      },
-      process.env.JWT_SECRET_KEY,
-      { expiresIn: "10m" }
-    );
+  const verifyToken = jwt.sign(
+  {
+    sub: user._id.toString(),
+    purpose: "EMAIL_VERIFY"
+  },
+  process.env.JWT_SECRET_KEY,
+  { expiresIn: "10m" }
+);
 
-    res.cookie("verify_token", verifyToken, getCookieOptions());
-    return res.status(201).json({
-      code: "EMAIL_OTP_SENT",
-      message: "OTP sent to your email"
-    });
+res.cookie("verify_token", verifyToken, getCookieOptions());
+
+return res.status(201).json({
+  code: "EMAIL_OTP_SENT",
+  message: "OTP sent to your email"
+});
 
   } catch (error) {
     console.error("Register error:", error.message);
@@ -196,7 +197,7 @@ exports.login = async (req, res) => {
     );
 
     // const isProd = process.env.NODE_ENV === "production";
-    
+
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,
