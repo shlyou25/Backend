@@ -100,7 +100,7 @@ exports.updateuserinfo = async (req, res) => {
     let  { name, phoneNumber, userName } = req.body;
     if (name) name = name.trim();
     if (phoneNumber) phoneNumber = phoneNumber.trim();
-    if (userName) userName = userName.trim().toLowerCase();
+    if (userName) userName = userName.trim()
     if (phoneNumber) {
       if (!PHONE_REGEX.test(phoneNumber)) {
         return res.status(400).json({
