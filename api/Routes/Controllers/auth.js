@@ -70,21 +70,22 @@ exports.register = async (req, res) => {
   `
     });
 
-  const verifyToken = jwt.sign(
-  {
-    sub: user._id.toString(),
-    purpose: "EMAIL_VERIFY"
-  },
-  process.env.JWT_SECRET_KEY,
-  { expiresIn: "10m" }
-);
+    const verifyToken = jwt.sign(
+      {
+        sub: user._id.toString(),
+        purpose: "EMAIL_VERIFY"
+      },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: "10m" }
+    );
+  console.log(verifyToken);
+  
+    res.cookie("verify_token", verifyToken, getCookieOptions());
 
-res.cookie("verify_token", verifyToken, getCookieOptions());
-
-return res.status(201).json({
-  code: "EMAIL_OTP_SENT",
-  message: "OTP sent to your email"
-});
+    return res.status(201).json({
+      code: "EMAIL_OTP_SENT",
+      message: "OTP sent to your email"
+    });
 
   } catch (error) {
     console.error("Register error:", error.message);
@@ -198,10 +199,12 @@ exports.login = async (req, res) => {
 
     // const isProd = process.env.NODE_ENV === "production";
 
+    const isProd = process.env.NODE_ENV === "production";
+
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       path: "/",
       maxAge: 60 * 60 * 1000,
     });
@@ -451,8 +454,8 @@ exports.verifyAdminOtp = async (req, res) => {
       httpOnly: true,
       // secure: isProd,
       // sameSite: isProd ? "None" : "Lax",
-      secure: true,
-      sameSite: "none",
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       maxAge: 60 * 60 * 1000
     });
     return res.status(200).json({
@@ -803,12 +806,11 @@ exports.verifyForgotOtp = async (req, res) => {
       process.env.JWT_SECRET_KEY,
       { expiresIn: "10m" }
     );
-
+const isProd = process.env.NODE_ENV === "production";
     res.cookie("reset_token", verifiedToken, {
       httpOnly: true,
-      // secure: process.env.NODE_ENV === "production",
-      // sameSite: "strict",
-      secure: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       sameSite: "none",
       maxAge: 10 * 60 * 1000
     });

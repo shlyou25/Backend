@@ -3,9 +3,10 @@ exports.getCookieOptions = () => {
 
   return {
     httpOnly: true,
-    secure: isProd,                     // false on localhost
-    sameSite: isProd ? "none" : "lax",  // lax on localhost
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
     path: "/",
-    maxAge: 10 * 60 * 1000
+    maxAge: 10 * 60 * 1000,
+    domain: isProd ? ".domz.com" : "localhost"
   };
 };
