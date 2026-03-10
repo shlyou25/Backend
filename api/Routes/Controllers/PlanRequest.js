@@ -6,41 +6,99 @@ const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 const PlanRequest = require("../../../models/planRequestSchema");
 
 
+// exports.planRequest = async (req, res) => {
+//   try {
+//     const userId = req.user?.id;
+//     const { planTitle } = req.body;
+
+//     if (!planTitle) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Plan is required"
+//       });
+//     }
+
+//     const selectedPlan = packages.find(p => p.title === planTitle);
+//     if (!selectedPlan) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid plan selected"
+//       });
+//     }
+
+//     // 🔥 BLOCK if user already has an active plan
+//     const activePlan = await PlanSchema.findOne({
+//       userId,
+//       endingDate: { $gt: new Date() },
+//       status: "active"
+//     });
+
+//     if (activePlan) {
+//       return res.status(403).json({
+//         status: false,
+//         message: "You already have an active plan. For any customization please contact support."
+//       });
+//     }
+
+//     const existingRequest = await planRequestSchema.findOne({
+//       userId,
+//       status: "Pending"
+//     });
+
+//     if (existingRequest) {
+//       return res.status(409).json({
+//         status: false,
+//         message: "You already have a pending plan request"
+//       });
+//     }
+
+//     const request = await planRequestSchema.create({
+//       userId,
+//       planTitle: selectedPlan.title,
+//       price: selectedPlan.price,
+//       per: selectedPlan.per,
+//       featureLimit: selectedPlan.feature,
+//       status: "Pending"
+//     });
+//     return res.status(201).json({
+//       status: true,
+//       message: "Plan request submitted successfully",
+//     });
+
+//   } catch (error) {
+//     console.error("Plan request error:", error);
+//     return res.status(500).json({
+//       status: false,
+//       message: "Failed to submit plan request"
+//     });
+//   }
+// };
+
 exports.planRequest = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { planTitle } = req.body;
 
-    if (!planTitle) {
+    const {
+      name,
+      email,
+      phone,
+      domains,
+      sellerType,
+      website,
+      social,
+      marketplace,
+      portfolio,
+      comments
+    } = req.body;
+
+    if (!name || !email || !domains || !sellerType) {
       return res.status(400).json({
         status: false,
-        message: "Plan is required"
+        message: "Required fields are missing"
       });
     }
 
-    const selectedPlan = packages.find(p => p.title === planTitle);
-    if (!selectedPlan) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid plan selected"
-      });
-    }
-
-    // 🔥 BLOCK if user already has an active plan
-    const activePlan = await PlanSchema.findOne({
-      userId,
-      endingDate: { $gt: new Date() },
-      status: "active"
-    });
-
-    if (activePlan) {
-      return res.status(403).json({
-        status: false,
-        message: "You already have an active plan. For any customization please contact support."
-      });
-    }
-
-    const existingRequest = await planRequestSchema.findOne({
+    const existingRequest = await PlanRequest.findOne({
       userId,
       status: "Pending"
     });
@@ -48,150 +106,130 @@ exports.planRequest = async (req, res) => {
     if (existingRequest) {
       return res.status(409).json({
         status: false,
-        message: "You already have a pending plan request"
+        message: "You already have a pending application"
       });
     }
 
-    const request = await planRequestSchema.create({
+    await PlanRequest.create({
       userId,
-      planTitle: selectedPlan.title,
-      price: selectedPlan.price,
-      per: selectedPlan.per,
-      featureLimit: selectedPlan.feature,
+      name,
+      email,
+      phone,
+      domains,
+      sellerType,
+      website,
+      social,
+      marketplace,
+      portfolio,
+      comments,
       status: "Pending"
     });
+
     return res.status(201).json({
       status: true,
-      message: "Plan request submitted successfully",
+      message: "Application submitted successfully"
     });
 
   } catch (error) {
-    console.error("Plan request error:", error);
+    console.error("Application error:", error);
+
     return res.status(500).json({
       status: false,
-      message: "Failed to submit plan request"
+      message: "Failed to submit application"
     });
   }
 };
-
 exports.getAllPlanRequests = async (req, res) => {
   try {
-    const [requests, pendingCount] = await Promise.all([
-      planRequestSchema
+
+    const [applications, pendingCount] = await Promise.all([
+      PlanRequest
         .find()
         .populate("userId", "name email")
         .sort({ createdAt: -1 }),
 
-      planRequestSchema.countDocuments({ status: "Pending" })
+      PlanRequest.countDocuments({ status: "Pending" })
     ]);
 
     return res.status(200).json({
       status: true,
-      total: requests.length,
+      total: applications.length,
       pendingCount,
-      data: requests
+      data: applications
     });
 
   } catch (error) {
-    console.error("Fetch plan requests error:", error);
+    console.error("Fetch applications error:", error);
+
     return res.status(500).json({
       status: false,
-      message: "Failed to fetch plan requests"
+      message: "Failed to fetch applications"
     });
   }
 };
 
 exports.approvePlanAdmin = async (req, res) => {
   try {
-    const { userId, title } = req.body;
-   
-    if (!userId || !title) {
+    const { userId, domains } = req.body;
+
+    if (!userId || !domains) {
       return res.status(400).json({
-        message: "userId and plan title are required"
+        message: "userId and domains are required"
       });
     }
 
-    // Validate plan title
-    const { error } = selectPlanSchema.validate({ title });
-    
-    if (error) {
+    const domainLimit = Number(domains);
+
+    if (isNaN(domainLimit)) {
       return res.status(400).json({
-        message: error.details[0].message
-      });
-    }
-    
-    // Find selected plan
-    const selectedPlan = packages.find(p => p.title === title);
-    if (!selectedPlan) {
-      return res.status(400).json({
-        message: "Invalid plan selected"
+        message: "Invalid domain number"
       });
     }
 
-    // Helper: plan rank from package order
-    const getPlanRank = (planTitle) =>
-    packages.findIndex(p => p.title === planTitle);
-
-    // Find active plan (if any)
+    // Check existing active plan
     const existingPlan = await PlanSchema.findOne({
       userId,
       status: "active",
       endingDate: { $gt: new Date() }
     }).sort({ createdAt: -1 });
-   
-    // 🔁 Handle upgrade logic
-    if (existingPlan) {
-      const currentRank = getPlanRank(existingPlan.title);
-      const newRank = getPlanRank(title);
 
-      if (currentRank === -1 || newRank === -1) {
-        return res.status(400).json({
-          message: "Plan configuration error"
-        });
-      }
-  
-      // Block downgrade or same plan
-      if (newRank <= currentRank) {
-        return res.status(400).json({
-          message: "Only higher plan upgrades are allowed"
-        });
-      }
-     
-      // Expire current plan
+    // Expire current plan if exists
+    if (existingPlan) {
       existingPlan.status = "expired";
       existingPlan.endingDate = new Date();
       await existingPlan.save();
-    }    
-    // 📅 SERVER-CONTROLLED DURATION
+    }
+
+    // Plan duration
     const startDate = new Date();
     const durationInMonths = 1;
+
     const endingDate = new Date(startDate);
     endingDate.setMonth(startDate.getMonth() + durationInMonths);
 
-   
-    // Create new active plan
+    // Create new Domz plan
     const newPlan = await PlanSchema.create({
       userId,
-      title: selectedPlan.title,
-      price: selectedPlan.price,
-      per: selectedPlan.per,
-      feature: selectedPlan.feature,
-      durationInMonths:1,
+      title: "Domz Approved Plan",
+      price: 0,
+      per: "Month",
+      feature: domainLimit,
+      durationInMonths: 1,
       startDate,
       endingDate,
       status: "active"
     });
 
-    // Attach to user
+    // Attach plan to user
     await userSchema.findByIdAndUpdate(userId, {
       $push: { plans: newPlan._id }
     });
 
-    // Approve plan request
+    // Update request status
     await PlanRequest.findOneAndUpdate(
       {
         userId,
-        planTitle: title,
+        domains,
         status: "Pending"
       },
       {
@@ -200,14 +238,13 @@ exports.approvePlanAdmin = async (req, res) => {
     );
 
     return res.status(201).json({
-      message: existingPlan
-        ? "Plan upgraded successfully"
-        : "Plan activated successfully",
+      message: "Plan approved successfully",
       plan: newPlan
     });
 
   } catch (error) {
-    console.error("Approve plan error:", error);
+    console.error("Approve domain plan error:", error);
+
     return res.status(500).json({
       message: "Internal server error"
     });

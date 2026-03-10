@@ -158,6 +158,8 @@ exports.login = async (req, res) => {
         message: "Password change required"
       });
     }
+   
+    
     if (user.role === "admin") {
       const otp = generateOtp();
 
@@ -181,6 +183,8 @@ exports.login = async (req, res) => {
         message: "OTP sent to your email"
       });
     }
+    console.log("send");
+    
     if (!user.isActive && user.role != "admin") {
       return res.status(403).json({
         success: false,
