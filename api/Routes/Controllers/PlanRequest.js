@@ -254,17 +254,18 @@ exports.approvePlanAdmin = async (req, res) => {
 
 exports.rejectPlanRequest = async (req, res) => {
   try {
-    const { userId, planTitle } = req.body;
+    const { userId, domains } = req.body;
 
-    if (!userId || !planTitle) {
+    if (!userId || !domains) {
       return res.status(400).json({
         status: false,
-        message: "userId and planTitle are required"
+        message: "userId and domains are required"
       });
     }
+
     const request = await planRequestSchema.findOne({
       userId,
-      planTitle,
+      domains,
       status: "Pending"
     });
 
@@ -274,6 +275,7 @@ exports.rejectPlanRequest = async (req, res) => {
         message: "No pending plan request found"
       });
     }
+
     request.status = "Rejected";
     await request.save();
 
@@ -285,6 +287,7 @@ exports.rejectPlanRequest = async (req, res) => {
 
   } catch (error) {
     console.error("Reject plan request error:", error);
+
     return res.status(500).json({
       status: false,
       message: "Failed to reject plan request"
