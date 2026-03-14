@@ -25,7 +25,7 @@ exports.getInbox = async (req, res) => {
       if (!c.domainId) continue;
 
       const domainKey = c.domainId?._id?.toString();
-if (!domainKey) continue;
+      if (!domainKey) continue;
 
       if (!grouped[domainKey]) {
         grouped[domainKey] = {
@@ -166,8 +166,58 @@ exports.startConversation = async (req, res) => {
       await sendEmail({
         to: domain.userId.email,
         subject: `Notification for ${decryptedDomain}`,
-        html: `<p>You have received a new message regarding <strong>${decryptedDomain}</strong>.</p>
-               <blockquote>${message}</blockquote>`
+        html: `
+<div style="background:#f5f7fb;padding:40px 0;font-family:Arial,sans-serif;">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" 
+         style="background:#ffffff;padding:30px;border-radius:8px;">
+
+    <tr>
+      <td style="font-size:16px;color:#333;">
+        You have received a new message regarding 
+        <strong>${decryptedDomain}</strong>.
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:20px;">
+        <blockquote style="
+          margin:0;
+          padding:15px;
+          background:#f3f4f6;
+          border-left:4px solid #4f46e5;
+          color:#333;
+          font-size:14px;
+        ">
+          ${message}
+        </blockquote>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:20px;font-size:14px;">
+        Please log in to 
+        <a href="https://domz.com" style="color:#4f46e5;text-decoration:none;">
+          Domz
+        </a>
+        to reply using the integrated chat feature.
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:30px;">
+        <hr style="border:none;border-top:1px solid #eee;">
+      </td>
+    </tr>
+
+    <tr>
+      <td style="font-size:12px;color:#777;padding-top:10px;">
+        This is an automated message. Please do not reply to this email.
+      </td>
+    </tr>
+
+  </table>
+</div>
+`
       });
     }
 
@@ -175,7 +225,58 @@ exports.startConversation = async (req, res) => {
       await sendEmail({
         to: buyer.email,
         subject: `Copy of your message about ${decryptedDomain}`,
-        html: `<blockquote>${message}</blockquote>`
+      html: `
+<div style="background:#f5f7fb;padding:40px 0;font-family:Arial,sans-serif;">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" 
+         style="background:#ffffff;padding:30px;border-radius:8px;">
+
+    <tr>
+      <td style="font-size:16px;color:#333;">
+        You have received a new message regarding 
+        <strong>${decryptedDomain}</strong>.
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:20px;">
+        <blockquote style="
+          margin:0;
+          padding:15px;
+          background:#f3f4f6;
+          border-left:4px solid #4f46e5;
+          color:#333;
+          font-size:14px;
+        ">
+          ${message}
+        </blockquote>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:20px;font-size:14px;">
+        Please log in to 
+        <a href="https://domz.com" style="color:#4f46e5;text-decoration:none;">
+          Domz
+        </a>
+        to reply using the integrated chat feature.
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding-top:30px;">
+        <hr style="border:none;border-top:1px solid #eee;">
+      </td>
+    </tr>
+
+    <tr>
+      <td style="font-size:12px;color:#777;padding-top:10px;">
+        This is an automated message. Please do not reply to this email.
+      </td>
+    </tr>
+
+  </table>
+</div>
+`
       });
     }
 
@@ -189,11 +290,6 @@ exports.startConversation = async (req, res) => {
   }
 };
 
-/**
- * ===============================
- * REPLY TO CONVERSATION
- * ===============================
- */
 exports.replyToConversation = async (req, res) => {
   try {
     const { id } = req.params;

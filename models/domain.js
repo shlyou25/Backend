@@ -30,6 +30,10 @@ const domainSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    adminCheck: {
+      type: Boolean,
+      default: false,
+    },
 
     isChatActive: {
       type: Boolean,

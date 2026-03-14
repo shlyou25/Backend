@@ -31,6 +31,13 @@ router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.Ad
 router.delete("/admin/domain/bulk-delete",authenticate,isAdmin, domainController.AdminBulkDeleteDomains);
 
 router.patch(
+  "/admin/update-admin-check/:domainId",
+  authenticate,
+  isAdmin,
+  domainController.updateAdminCheck
+);
+
+router.patch(
   '/bulk-toggle-hide',
   authenticate,
   domainController.bulkToggleHide

@@ -251,7 +251,6 @@ exports.approvePlanAdmin = async (req, res) => {
   }
 };
 
-
 exports.rejectPlanRequest = async (req, res) => {
   try {
     const { userId, domains } = req.body;

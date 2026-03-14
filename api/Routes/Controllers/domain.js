@@ -93,9 +93,192 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 // };
 
 
+// exports.adddomain = async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+//     const activePlan = await planSchema
+//       .findOne({ userId })
+//       .sort({ createdAt: -1 });
+
+//     if (!activePlan || activePlan.endingDate < new Date()) {
+//       return res.status(400).json({
+//         message: "Please get a plan before adding domains.",
+//       });
+//     }
+
+//     const allowedDomains = activePlan.feature;
+//     let { domains } = req.body;
+
+//     if (!domains) {
+//       return res.status(400).json({ message: "No domains provided." });
+//     }
+
+//     let normalizedDomains = [];
+//     if (typeof domains === "string") {
+//       normalizedDomains = domains
+//         .split(/[\n,]+/)
+//         .map((d) => ({
+//           domainName: d.trim(),
+//           url: null,
+//         }))
+//         .filter((d) => d.domainName);
+//     }
+//     else if (Array.isArray(domains)) {
+//       normalizedDomains = domains
+//         .map((d) => {
+//           if (typeof d === "string") {
+//             return { domainName: d.trim(), url: null };
+//           }
+
+//           if (
+//             typeof d === "object" &&
+//             typeof d.domainName === "string"
+//           ) {
+//             return {
+//               domainName: d.domainName.trim(),
+//               url:
+//                 typeof d.url === "string" && d.url.trim()
+//                   ? d.url.trim()
+//                   : null,
+//             };
+//           }
+
+//           return null;
+//         })
+//         .filter(Boolean);
+//     } else {
+//       return res.status(400).json({ message: "Invalid domains format." });
+//     }
+
+//     if (!normalizedDomains.length) {
+//       return res.status(400).json({ message: "No valid domains provided." });
+//     }
+//     const seen = new Set();
+//     const duplicatesInRequest = [];
+
+//     for (const d of normalizedDomains) {
+//       if (seen.has(d.domainName)) {
+//         duplicatesInRequest.push(d.domainName);
+//       }
+//       seen.add(d.domainName);
+//     }
+
+//     if (duplicatesInRequest.length) {
+//       return res.status(400).json({
+//         message: "Duplicate domains in request.",
+//         duplicates: [...new Set(duplicatesInRequest)],
+//       });
+//     }
+//     const existingEncrypted = await domainSchema
+//       .find({ userId })
+//       .select("domain")
+//       .lean();
+
+//     const existingPlain = existingEncrypted.map((d) =>
+//       decryptData(d.domain)
+//     );
+
+//     const duplicatesInDB = normalizedDomains
+//       .map((d) => d.domainName)
+//       .filter((d) => existingPlain.includes(d));
+
+//     if (duplicatesInDB.length) {
+//       return res.status(400).json({
+//         message: "Domains already exist.",
+//         duplicates: duplicatesInDB,
+//       });
+//     }
+//     const lookupMap = new Map();
+
+//     for (const d of normalizedDomains) {
+//       const checkerKey = (d.url ? d.url : d.domainName).toLowerCase();
+//       lookupMap.set(checkerKey, d);
+//     }
+
+//     const checkerPayload = [...lookupMap.keys()];
+//     let apiResponse;
+//     try {
+//       apiResponse = await axios.post(
+//         "https://domain-analyser-g5oce.ondigitalocean.app/check_domains",
+//         { domains: checkerPayload }
+//       );
+//     } catch {
+//       return res.status(502).json({
+//         message: "Domain verification service unavailable.",
+//       });
+//     }
+//     const results = Array.isArray(apiResponse.data?.results)
+//       ? apiResponse.data.results
+//       : [];
+//     const passDomains = [];
+//     const manualDomains = [];
+//     const failedDomains = [];
+
+//     for (const r of results) {
+//       if (r.status === "Pass") passDomains.push(r);
+//       else if (r.status === "Manual Review") manualDomains.push(r);
+//       else failedDomains.push(r);
+//     }
+
+//     const existingCount = existingPlain.length;
+//     const totalToInsert = passDomains.length + manualDomains.length;
+//     if (
+//       allowedDomains !== -1 &&
+//       existingCount + totalToInsert > allowedDomains
+//     ) {
+//       return res.status(400).json({
+//         message: `Your plan allows ${allowedDomains} domains.
+// You already added ${existingCount}.
+// You can add only ${allowedDomains - existingCount} more.`,
+//         pass: passDomains.map((d) => d.domain),
+//         manualReview: manualDomains.map((d) => d.domain),
+//         failed: failedDomains.map((d) => d.domain),
+//       });
+//     }
+
+//     const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
+//       (r) => {
+//         const original = lookupMap.get((r.domain || "").toLowerCase());
+//         if (!original) return null;
+
+//         return {
+//           domain: encryptData(original.domainName),
+//           domainSearch: original.domainName.toLowerCase(),
+//           userId,
+//           status: r.status,
+//           finalUrl: original.url
+//             ? original.url
+//             : r.final_url || null,
+//         };
+//       }
+//     );
+
+//     if (docs.length) {
+//       await domainSchema.insertMany(docs);
+//     }
+
+//     return res.status(200).json({
+//       message: "Domain processing completed.",
+//       added: passDomains.map((d) => d.domain),
+//       manualReview: manualDomains.map((d) => d.domain),
+//       failed: failedDomains.map((d) => d.domain),
+//       remaining:
+//         allowedDomains === -1
+//           ? "Unlimited"
+//           : allowedDomains - (existingCount + totalToInsert),
+//     });
+//   } catch (error) {
+//     console.error("AddDomain Error:", error);
+//     return res.status(500).json({
+//       message: "Error adding domains",
+//     });
+//   }
+// };
+
 exports.adddomain = async (req, res) => {
   try {
     const userId = req.user.id;
+
     const activePlan = await planSchema
       .findOne({ userId })
       .sort({ createdAt: -1 });
@@ -114,6 +297,7 @@ exports.adddomain = async (req, res) => {
     }
 
     let normalizedDomains = [];
+
     if (typeof domains === "string") {
       normalizedDomains = domains
         .split(/[\n,]+/)
@@ -130,10 +314,7 @@ exports.adddomain = async (req, res) => {
             return { domainName: d.trim(), url: null };
           }
 
-          if (
-            typeof d === "object" &&
-            typeof d.domainName === "string"
-          ) {
+          if (typeof d === "object" && typeof d.domainName === "string") {
             return {
               domainName: d.domainName.trim(),
               url:
@@ -153,22 +334,23 @@ exports.adddomain = async (req, res) => {
     if (!normalizedDomains.length) {
       return res.status(400).json({ message: "No valid domains provided." });
     }
-    const seen = new Set();
-    const duplicatesInRequest = [];
+
+    const allowedTLDs = [".com", ".org", ".net", ".ai", ".io", ".xyz"];
+
+    const allowedList = [];
+    const failedList = [];
 
     for (const d of normalizedDomains) {
-      if (seen.has(d.domainName)) {
-        duplicatesInRequest.push(d.domainName);
+      const lower = d.domainName.toLowerCase();
+
+      if (allowedTLDs.some((tld) => lower.endsWith(tld))) {
+        allowedList.push(d);
+      } else {
+        failedList.push(d);
       }
-      seen.add(d.domainName);
     }
 
-    if (duplicatesInRequest.length) {
-      return res.status(400).json({
-        message: "Duplicate domains in request.",
-        duplicates: [...new Set(duplicatesInRequest)],
-      });
-    }
+    // Fetch existing domains
     const existingEncrypted = await domainSchema
       .find({ userId })
       .select("domain")
@@ -178,103 +360,74 @@ exports.adddomain = async (req, res) => {
       decryptData(d.domain)
     );
 
-    const duplicatesInDB = normalizedDomains
-      .map((d) => d.domainName)
-      .filter((d) => existingPlain.includes(d));
+    const domainsToInsert = [];
 
-    if (duplicatesInDB.length) {
-      return res.status(400).json({
-        message: "Domains already exist.",
-        duplicates: duplicatesInDB,
-      });
-    }
-    const lookupMap = new Map();
-
-    for (const d of normalizedDomains) {
-      const checkerKey = (d.url ? d.url : d.domainName).toLowerCase();
-      lookupMap.set(checkerKey, d);
-    }
-
-    const checkerPayload = [...lookupMap.keys()];
-    let apiResponse;
-    try {
-      apiResponse = await axios.post(
-        "https://domain-analyser-g5oce.ondigitalocean.app/check_domains",
-        { domains: checkerPayload }
-      );
-    } catch {
-      return res.status(502).json({
-        message: "Domain verification service unavailable.",
-      });
-    }
-    const results = Array.isArray(apiResponse.data?.results)
-      ? apiResponse.data.results
-      : [];
-    const passDomains = [];
-    const manualDomains = [];
-    const failedDomains = [];
-
-    for (const r of results) {
-      if (r.status === "Pass") passDomains.push(r);
-      else if (r.status === "Manual Review") manualDomains.push(r);
-      else failedDomains.push(r);
+    for (const d of allowedList) {
+      if (!existingPlain.includes(d.domainName)) {
+        domainsToInsert.push(d);
+      }
     }
 
     const existingCount = existingPlain.length;
-    const totalToInsert = passDomains.length + manualDomains.length;
+    const totalToInsert = domainsToInsert.length;
+
     if (
       allowedDomains !== -1 &&
       existingCount + totalToInsert > allowedDomains
     ) {
       return res.status(400).json({
-        message: `Your plan allows ${allowedDomains} domains.
-You already added ${existingCount}.
-You can add only ${allowedDomains - existingCount} more.`,
-        pass: passDomains.map((d) => d.domain),
-        manualReview: manualDomains.map((d) => d.domain),
-        failed: failedDomains.map((d) => d.domain),
+        message: `Your plan allows ${allowedDomains} domains. You already added ${existingCount}.`,
       });
     }
 
-    const docs = [...passDomains, ...manualDomains, ...failedDomains].map(
-      (r) => {
-        const original = lookupMap.get((r.domain || "").toLowerCase());
-        if (!original) return null;
+    const docs = [];
 
-        return {
-          domain: encryptData(original.domainName),
-          domainSearch: original.domainName.toLowerCase(),
-          userId,
-          status: r.status,
-          finalUrl: original.url
-            ? original.url
-            : r.final_url || null,
-        };
-      }
-    );
+    // Allowed domains
+    for (const d of domainsToInsert) {
+      docs.push({
+        domain: encryptData(d.domainName),
+        domainSearch: d.domainName.toLowerCase(),
+        userId,
+        status: "Pass",
+        adminCheck: false,
+        finalUrl: d.url ? d.url : null,
+      });
+    }
+
+    // Failed domains
+    for (const d of failedList) {
+      docs.push({
+        domain: encryptData(d.domainName),
+        domainSearch: d.domainName.toLowerCase(),
+        userId,
+        status: "Fail",
+        adminCheck: false,
+        finalUrl: d.url ? d.url : null,
+      });
+    }
 
     if (docs.length) {
       await domainSchema.insertMany(docs);
     }
 
     return res.status(200).json({
-      message: "Domain processing completed.",
-      added: passDomains.map((d) => d.domain),
-      manualReview: manualDomains.map((d) => d.domain),
-      failed: failedDomains.map((d) => d.domain),
+      message: `Added: ${domainsToInsert.length}. Failed: ${failedList.length} - TLDs not allowed. For details connect with admin via contact page.`,
+      added: domainsToInsert.length,
+      failed: failedList.length,
       remaining:
         allowedDomains === -1
           ? "Unlimited"
           : allowedDomains - (existingCount + totalToInsert),
     });
+
   } catch (error) {
     console.error("AddDomain Error:", error);
+
     return res.status(500).json({
       message: "Error adding domains",
     });
   }
 };
-
 
 exports.getdomainbyuserid = async (req, res) => {
   try {
@@ -608,6 +761,42 @@ exports.AdminBulkDeleteDomains = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
+    });
+  }
+};
+
+exports.updateAdminCheck = async (req, res) => {
+  try {
+    const { domainId } = req.params;
+    const { adminCheck } = req.body;
+
+    if (typeof adminCheck !== "boolean") {
+      return res.status(400).json({
+        message: "Invalid adminCheck value. It must be true or false.",
+      });
+    }
+
+    const domain = await domainSchema.findById(domainId);
+
+    if (!domain) {
+      return res.status(404).json({
+        message: "Domain not found.",
+      });
+    }
+
+    domain.adminCheck = adminCheck;
+    await domain.save();
+
+    return res.status(200).json({
+      message: "Admin check status updated successfully.",
+      adminCheck: domain.adminCheck,
+    });
+
+  } catch (error) {
+    console.error("Update AdminCheck Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to update admin check status.",
     });
   }
 };
@@ -977,7 +1166,7 @@ exports.getAllDomains = async (req, res) => {
       .find({})
       .populate({
         path: "userId",
-        select: "name"
+        select: "name email"
       })
       .sort({
         isPromoted: -1,
@@ -985,7 +1174,7 @@ exports.getAllDomains = async (req, res) => {
         createdAt: -1
       })
       .select(
-        "_id domain promotionPriority isPromoted status finalUrl userId createdAt"
+        "_id domain promotionPriority isPromoted status finalUrl userId createdAt adminCheck"
       )
       .lean();
 
@@ -1001,10 +1190,12 @@ exports.getAllDomains = async (req, res) => {
       priority: d.promotionPriority ?? null,
       status: d.status,
       finalUrl: d.finalUrl || null,
-      createdAt: d.createdAt, // ✅ added
+      createdAt: d.createdAt, 
+      adminCheck:d.adminCheck,
       owner: d.userId
         ? {
           name: d.userId.name,
+          email:d.userId.email
         }
         : {
           name: "Anonymous",
