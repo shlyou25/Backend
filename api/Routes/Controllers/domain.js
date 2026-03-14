@@ -1,6 +1,7 @@
-const axios = require("axios");
+// const axios = require("axios");
 const planSchema = require('../../../models/packages');
 const domainSchema = require('../../../models/domain');
+const userSchema = require('../../../models/user')
 // const { packages } = require('../../middlewares/PackagePlan');
 const { encryptData, decryptData } = require('../../middlewares/crypto');
 
@@ -976,7 +977,89 @@ exports.getHiddenDomains = async (req, res) => {
   }
 };
 
+exports.getDomainsBySeller = async (req, res) => {
+  try {
+    const MAX_LIMIT = 500;
 
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+
+    let limit = parseInt(req.query.limit) || 10;
+    if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+
+    const skip = (page - 1) * limit;
+
+    const sellerName = (req.params.sellerName || "").trim();
+
+    if (!sellerName) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user name",
+      });
+    }
+
+    // find user by exact username
+    const user = await userSchema
+      .findOne({ userName: { $regex: sellerName, $options: "i" } })
+      .select("_id userName")
+      .lean();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid user name",
+      });
+    }
+
+    const filter = {
+      userId: user._id,
+      status: "Pass",
+      isHidden: false,
+    };
+
+    const [domainsEncrypted, total] = await Promise.all([
+      domainSchema
+        .find(filter)
+        .select("_id domain isChatActive finalUrl createdAt isUserNameVisible")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      domainSchema.countDocuments(filter),
+    ]);
+
+    const domains = domainsEncrypted.map((d) => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      createdAt: d.createdAt,
+      user: {
+        id: user._id,
+        userName:
+          d.isUserNameVisible === false
+            ? "Anonymous"
+            : user.userName || "Anonymous",
+      },
+      isChatActive: d.isChatActive,
+      finalUrl: d.finalUrl || null,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      domains,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      limit,
+    });
+
+  } catch (error) {
+    console.error("getDomainsBySeller error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch domains",
+    });
+  }
+};
 
 exports.promoteDomain = async (req, res) => {
   try {
@@ -1190,12 +1273,12 @@ exports.getAllDomains = async (req, res) => {
       priority: d.promotionPriority ?? null,
       status: d.status,
       finalUrl: d.finalUrl || null,
-      createdAt: d.createdAt, 
-      adminCheck:d.adminCheck,
+      createdAt: d.createdAt,
+      adminCheck: d.adminCheck,
       owner: d.userId
         ? {
           name: d.userId.name,
-          email:d.userId.email
+          email: d.userId.email
         }
         : {
           name: "Anonymous",

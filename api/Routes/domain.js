@@ -9,6 +9,7 @@ router.patch('/:id/toggle-hide',authenticate,domainController.toggleHide);
 router.patch('/:id/toggle-chat',authenticate,domainController.toggleChat);
 
 router.get("/public", domainController.getHiddenDomains); 
+router.get("/seller/:sellerName", domainController.getDomainsBySeller);
 router.get("/promoted", domainController.getPromotedDomains);
 router.get("/search", domainController.serachDomain);
 
