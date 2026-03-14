@@ -93,14 +93,15 @@ exports.getuserbyid = async (req, res) => {
 
 exports.updateuserinfo = async (req, res) => {
   const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
-  const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
 
   try {
     const userId = req.user.id;
-    let  { name, phoneNumber, userName } = req.body;
+    let { name, phoneNumber, userName } = req.body;
+
     if (name) name = name.trim();
     if (phoneNumber) phoneNumber = phoneNumber.trim();
-    if (userName) userName = userName.trim()
+    if (userName) userName = userName.trim();
+
     if (phoneNumber) {
       if (!PHONE_REGEX.test(phoneNumber)) {
         return res.status(400).json({
@@ -123,15 +124,9 @@ exports.updateuserinfo = async (req, res) => {
         });
       }
     }
-    if (userName) {
-      if (!USERNAME_REGEX.test(userName)) {
-        return res.status(400).json({
-          status: false,
-          message:
-            "Username must be 3-20 characters, lowercase letters, numbers, or underscore only."
-        });
-      }
 
+    // Keep uniqueness check but remove regex validation
+    if (userName) {
       const existingUsername = await User.findOne({
         userName,
         _id: { $ne: userId }
@@ -144,6 +139,7 @@ exports.updateuserinfo = async (req, res) => {
         });
       }
     }
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
@@ -171,6 +167,7 @@ exports.updateuserinfo = async (req, res) => {
 
   } catch (error) {
     console.error("Update user error:", error);
+
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
       return res.status(409).json({
