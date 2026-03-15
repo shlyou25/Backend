@@ -276,6 +276,22 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 //   }
 // };
 
+async function getFinalUrl(domain) {
+  try {
+    let url = domain.startsWith("http") ? domain : `http://${domain}`;
+
+    const response = await axios.get(url, {
+      maxRedirects: 5,
+      timeout: 5000,
+      validateStatus: () => true
+    });
+
+    return response.request?.res?.responseUrl || url;
+  } catch (err) {
+    return `http://${domain}`;
+  }
+}
+
 exports.adddomain = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -385,13 +401,20 @@ exports.adddomain = async (req, res) => {
 
     // Allowed domains
     for (const d of domainsToInsert) {
+
+      let finalUrl = d.url;
+
+      if (!finalUrl) {
+        finalUrl = await getFinalUrl(d.domainName);
+      }
+
       docs.push({
         domain: encryptData(d.domainName),
         domainSearch: d.domainName.toLowerCase(),
         userId,
         status: "Pass",
         adminCheck: false,
-        finalUrl: d.url ? d.url : null,
+        finalUrl,
       });
     }
 
@@ -446,7 +469,7 @@ exports.getdomainbyuserid = async (req, res) => {
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
       createdAt: d.createdAt,
-      isUserNameVisible:d.isUserNameVisible,
+      isUserNameVisible: d.isUserNameVisible,
       isMessageNotificationEnabled: d.isMessageNotificationEnabled,
       finalUrl: d.finalUrl
     }));
@@ -1327,7 +1350,7 @@ exports.getAllPromotedDomains = async (req, res) => {
 
 exports.changeDomainStatus = async (req, res) => {
   try {
-    const { domainId, status, finalUrl } = req.body;
+    const { domainId, status } = req.body;
 
     if (!domainId || !status) {
       return res.status(400).json({
@@ -1363,48 +1386,37 @@ exports.changeDomainStatus = async (req, res) => {
       });
     }
 
-    /**
-     * 🔒 RULE:
-     * ANY → Pass requires finalUrl
-     */
-    /**
-   * ✅ RULES:
-   * Manual Review → Pass → no finalUrl required
-   * Fail → Pass → finalUrl required
-   * Pass → Fail → clear finalUrl
-   */
+    // if (status === "Pass") {
+    //   const previousStatus = domain.status;
 
-    if (status === "Pass") {
-      const previousStatus = domain.status;
+    //   // ❗ Fail → Pass requires URL
+    //   if (previousStatus === "Fail") {
+    //     if (!finalUrl || typeof finalUrl !== "string") {
+    //       return res.status(400).json({
+    //         success: false,
+    //         message:
+    //           "Final URL is required when moving from Fail to Pass",
+    //       });
+    //     }
 
-      // ❗ Fail → Pass requires URL
-      if (previousStatus === "Fail") {
-        if (!finalUrl || typeof finalUrl !== "string") {
-          return res.status(400).json({
-            success: false,
-            message:
-              "Final URL is required when moving from Fail to Pass",
-          });
-        }
+    //     try {
+    //       new URL(finalUrl);
+    //     } catch {
+    //       return res.status(400).json({
+    //         success: false,
+    //         message: "Invalid final URL format",
+    //       });
+    //     }
 
-        try {
-          new URL(finalUrl);
-        } catch {
-          return res.status(400).json({
-            success: false,
-            message: "Invalid final URL format",
-          });
-        }
+    //     domain.finalUrl = finalUrl;
+    //   }
 
-        domain.finalUrl = finalUrl;
-      }
-
-      // ✅ Manual Review → Pass (no URL required)
-      if (previousStatus === "Manual Review") {
-        // keep existing finalUrl if any
-        // do nothing
-      }
-    }
+    //   // ✅ Manual Review → Pass (no URL required)
+    //   if (previousStatus === "Manual Review") {
+    //     // keep existing finalUrl if any
+    //     // do nothing
+    //   }
+    // }
 
     /**
      * Optional cleanup:
