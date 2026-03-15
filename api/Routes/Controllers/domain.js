@@ -446,6 +446,7 @@ exports.getdomainbyuserid = async (req, res) => {
       isChatActive: d.isChatActive,
       isHidden: d.isHidden,
       createdAt: d.createdAt,
+      isUserNameVisible:d.isUserNameVisible,
       isMessageNotificationEnabled: d.isMessageNotificationEnabled,
       finalUrl: d.finalUrl
     }));
