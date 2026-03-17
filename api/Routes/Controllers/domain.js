@@ -1021,28 +1021,50 @@ exports.getDomainsBySeller = async (req, res) => {
       });
     }
 
-    // find user by exact username
-    const user = await userSchema
-      .findOne({ userName: { $regex: sellerName, $options: "i" } })
+    // ✅ Escape regex (IMPORTANT for safety)
+    const escapeRegex = (str) =>
+      str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const safeSearch = escapeRegex(sellerName);
+
+    // ✅ Find users (STARTS WITH match for better accuracy)
+    const users = await userSchema
+      .find({
+        userName: { $regex: `^${safeSearch}`, $options: "i" }
+      })
       .select("_id userName")
       .lean();
-    if (!user) {
+
+    if (!users.length) {
       return res.status(404).json({
         success: false,
-        message: "Invalid user name",
+        message: "No users found",
       });
     }
 
+    // ✅ Extract userIds
+    const userIds = users.map((u) => u._id);
+
+    // ✅ Create user map
+    const userMap = {};
+    users.forEach((u) => {
+      userMap[u._id.toString()] = u.userName;
+    });
+
+    // ✅ Domain filter (HIDE invisible usernames)
     const filter = {
-      userId: user._id,
+      userId: { $in: userIds },
       status: "Pass",
       isHidden: false,
+      isUserNameVisible: true, // 🔥 important
     };
 
     const [domainsEncrypted, total] = await Promise.all([
       domainSchema
         .find(filter)
-        .select("_id domain isChatActive finalUrl createdAt isUserNameVisible")
+        .select(
+          "_id domain isChatActive finalUrl createdAt userId"
+        )
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -1051,16 +1073,14 @@ exports.getDomainsBySeller = async (req, res) => {
       domainSchema.countDocuments(filter),
     ]);
 
+    // ✅ Map response
     const domains = domainsEncrypted.map((d) => ({
       domainId: d._id,
       domain: decryptData(d.domain),
       createdAt: d.createdAt,
       user: {
-        id: user._id,
-        userName:
-          d.isUserNameVisible === false
-            ? "Anonymous"
-            : user.userName || "Anonymous",
+        id: d.userId,
+        userName: userMap[d.userId.toString()] || "Anonymous",
       },
       isChatActive: d.isChatActive,
       finalUrl: d.finalUrl || null,
