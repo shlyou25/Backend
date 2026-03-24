@@ -276,6 +276,14 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 //   }
 // };
 
+const getHostname = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+};
+
 async function getFinalUrl(domain) {
   try {
     let url = domain.startsWith("http") ? domain : `http://${domain}`;
@@ -367,7 +375,6 @@ exports.adddomain = async (req, res) => {
       }
     }
 
-    // Fetch existing domains
     const existingEncrypted = await domainSchema
       .find({ userId })
       .select("domain")
@@ -398,21 +405,48 @@ exports.adddomain = async (req, res) => {
     }
 
     const docs = [];
+    let mismatchCount = 0;
 
     // Allowed domains
     for (const d of domainsToInsert) {
 
-      let finalUrl = d.url;
+      let finalUrl;
+      let isMismatch = false;
 
-      if (!finalUrl) {
+      if (d.url) {
+        // Get final redirected URL of user-provided URL
+        const pLimit = require("p-limit");
+        const limit = pLimit(10);
+
+        await Promise.all(
+          domainsToInsert.map(d =>
+            limit(async () => {
+              return await getFinalUrl(d.domainName);
+            })
+          )
+        );
+
+        const urlHost = getHostname(finalUrl);
+        const domainHost = d.domainName.toLowerCase();
+
+        if (!urlHost || !urlHost.endsWith(domainHost)) {
+          isMismatch = true;
+        }
+        if (isMismatch) mismatchCount++;
+        console.log('====================================');
+        console.log(mismatchCount);
+        console.log('====================================');
+      } else {
         finalUrl = await getFinalUrl(d.domainName);
       }
-
       docs.push({
         domain: encryptData(d.domainName),
         domainSearch: d.domainName.toLowerCase(),
         userId,
-        status: "Pass",
+        status: isMismatch ? "Fail" : "Pass",
+        reason: isMismatch
+          ? "Root domain does not match provided URL"
+          : null,
         adminCheck: false,
         finalUrl,
       });
@@ -435,9 +469,19 @@ exports.adddomain = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `Added: ${domainsToInsert.length}. Failed: ${failedList.length} - TLDs not allowed. For details connect with admin via contact page.`,
-      added: domainsToInsert.length,
-      failed: failedList.length,
+      message: `Added: ${domainsToInsert.length - mismatchCount}.
+Failed: ${failedList.length + mismatchCount} 
+(TLD: ${failedList.length}, URL mismatch: ${mismatchCount})`,
+
+      added: domainsToInsert.length - mismatchCount,
+
+      failed: failedList.length + mismatchCount,
+
+      failedBreakdown: {
+        tld: failedList.length,
+        urlMismatch: mismatchCount,
+      },
+
       remaining:
         allowedDomains === -1
           ? "Unlimited"
