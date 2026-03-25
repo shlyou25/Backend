@@ -991,12 +991,163 @@ exports.deleteBulkDomains = async (req, res) => {
 //   }
 // };
 
+// exports.getHiddenDomains = async (req, res) => {
+//   try {
+//     const MAX_LIMIT = 500;
+
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     let limit = Math.min(parseInt(req.query.limit) || 10, MAX_LIMIT);
+//     const skip = (page - 1) * limit;
+
+//     const {
+//       sortBy = "newest",
+//       search = "",
+//       extensions = "",
+//       startsWith = "",
+//       endsWith = "",
+//       contains = "",
+//       minLength,
+//       maxLength,
+//       sellerName
+//     } = req.query;
+
+//     const filter = {
+//       isHidden: false,
+//       status: "Pass"
+//     };
+
+//     // 🔍 SEARCH
+//     if (search) {
+//       filter.domainSearch = { $regex: search, $options: "i" };
+//     }
+
+//     // 👤 SELLER FILTER
+//     if (sellerName) {
+//       const users = await userSchema.find({
+//         userName: { $regex: `^${sellerName}`, $options: "i" }
+//       }).select("_id");
+
+//       filter.userId = { $in: users.map(u => u._id) };
+//     }
+
+//     // 🔤 EXTENSIONS (.com,.ai etc)
+//     if (extensions) {
+//       const exts = extensions.split(",");
+//       filter.domainSearch = {
+//         $regex: `(${exts.map(e => e.replace(".", "\\.")).join("|")})$`,
+//         $options: "i"
+//       };
+//     }
+
+//     let pipeline = [
+//       { $match: filter },
+
+//       // 👇 extract name without extension
+//       {
+//         $addFields: {
+//           name: {
+//             $arrayElemAt: [
+//               { $split: ["$domainSearch", "."] },
+//               0
+//             ]
+//           }
+//         }
+//       },
+
+//       {
+//         $addFields: {
+//           nameLength: { $strLenCP: "$name" }
+//         }
+//       }
+//     ];
+
+//     // 🔡 STARTS / ENDS / CONTAINS
+//     if (startsWith) {
+//       pipeline.push({
+//         $match: { name: { $regex: `^${startsWith}`, $options: "i" } }
+//       });
+//     }
+
+//     if (endsWith) {
+//       pipeline.push({
+//         $match: { name: { $regex: `${endsWith}$`, $options: "i" } }
+//       });
+//     }
+
+//     if (contains) {
+//       pipeline.push({
+//         $match: { name: { $regex: contains, $options: "i" } }
+//       });
+//     }
+
+//     // 📏 LENGTH FILTER
+//     if (minLength) {
+//       pipeline.push({
+//         $match: { nameLength: { $gte: Number(minLength) } }
+//       });
+//     }
+
+//     if (maxLength) {
+//       pipeline.push({
+//         $match: { nameLength: { $lte: Number(maxLength) } }
+//       });
+//     }
+
+//     // 🔃 SORT (GLOBAL, BEFORE PAGINATION)
+//     const sortMap = {
+//       az: { name: 1 },
+//       za: { name: -1 },
+//       newest: { createdAt: -1 },
+//       oldest: { createdAt: 1 },
+//       length_asc: { nameLength: 1 },
+//       length_desc: { nameLength: -1 }
+//     };
+
+//     pipeline.push({
+//       $sort: sortMap[sortBy] || { createdAt: -1 }
+//     });
+
+//     // 📄 PAGINATION
+//     pipeline.push({ $skip: skip }, { $limit: limit });
+
+//     const domainsRaw = await domainSchema.aggregate(pipeline);
+
+//     const total = await domainSchema.countDocuments(filter);
+
+//     const domains = domainsRaw.map(d => ({
+//       domainId: d._id,
+//       domain: decryptData(d.domain),
+//       createdAt: d.createdAt,
+//       finalUrl: d.finalUrl,
+//       user: {
+//         id: d.userId,
+//       },
+//       isChatActive: d.isChatActive
+//     }));
+
+//     return res.status(200).json({
+//       success: true,
+//       domains,
+//       total,
+//       page,
+//       totalPages: Math.ceil(total / limit),
+//       limit
+//     });
+
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch domains"
+//     });
+//   }
+// };
 exports.getHiddenDomains = async (req, res) => {
   try {
     const MAX_LIMIT = 500;
 
     const page = Math.max(parseInt(req.query.page) || 1, 1);
-    let limit = Math.min(parseInt(req.query.limit) || 10, MAX_LIMIT);
+    const limit = Math.min(parseInt(req.query.limit) || 10, MAX_LIMIT);
     const skip = (page - 1) * limit;
 
     const {
@@ -1011,6 +1162,7 @@ exports.getHiddenDomains = async (req, res) => {
       sellerName
     } = req.query;
 
+    // 🔹 BASE FILTER
     const filter = {
       isHidden: false,
       status: "Pass"
@@ -1030,7 +1182,7 @@ exports.getHiddenDomains = async (req, res) => {
       filter.userId = { $in: users.map(u => u._id) };
     }
 
-    // 🔤 EXTENSIONS (.com,.ai etc)
+    // 🔤 EXTENSIONS
     if (extensions) {
       const exts = extensions.split(",");
       filter.domainSearch = {
@@ -1039,29 +1191,60 @@ exports.getHiddenDomains = async (req, res) => {
       };
     }
 
+    // 🔹 PIPELINE START
     let pipeline = [
       { $match: filter },
 
-      // 👇 extract name without extension
+      // 🔗 JOIN USER (OPTIMIZED)
+      {
+        $lookup: {
+          from: "users",
+          let: { uid: "$userId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$uid"] } } },
+            { $project: { userName: 1 } }
+          ],
+          as: "user"
+        }
+      },
+      {
+        $unwind: {
+          path: "$user",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // ✂️ DOMAIN NAME WITHOUT EXTENSION
       {
         $addFields: {
           name: {
-            $arrayElemAt: [
-              { $split: ["$domainSearch", "."] },
-              0
-            ]
+            $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
           }
         }
       },
 
+      // 📏 LENGTH
       {
         $addFields: {
           nameLength: { $strLenCP: "$name" }
         }
+      },
+
+      // 👤 CONDITIONAL USERNAME
+      {
+        $addFields: {
+          userName: {
+            $cond: [
+              { $eq: ["$isUserNameVisible", true] },
+              "$user.userName",
+              null
+            ]
+          }
+        }
       }
     ];
 
-    // 🔡 STARTS / ENDS / CONTAINS
+    // 🔡 FILTERS
     if (startsWith) {
       pipeline.push({
         $match: { name: { $regex: `^${startsWith}`, $options: "i" } }
@@ -1080,7 +1263,6 @@ exports.getHiddenDomains = async (req, res) => {
       });
     }
 
-    // 📏 LENGTH FILTER
     if (minLength) {
       pipeline.push({
         $match: { nameLength: { $gte: Number(minLength) } }
@@ -1093,7 +1275,7 @@ exports.getHiddenDomains = async (req, res) => {
       });
     }
 
-    // 🔃 SORT (GLOBAL, BEFORE PAGINATION)
+    // 🔃 SORT
     const sortMap = {
       az: { name: 1 },
       za: { name: -1 },
@@ -1107,22 +1289,27 @@ exports.getHiddenDomains = async (req, res) => {
       $sort: sortMap[sortBy] || { createdAt: -1 }
     });
 
+    // 🧮 TOTAL COUNT (CORRECT WAY)
+    const totalPipeline = [...pipeline, { $count: "total" }];
+    const totalResult = await domainSchema.aggregate(totalPipeline);
+    const total = totalResult[0]?.total || 0;
+
     // 📄 PAGINATION
     pipeline.push({ $skip: skip }, { $limit: limit });
 
     const domainsRaw = await domainSchema.aggregate(pipeline);
 
-    const total = await domainSchema.countDocuments(filter);
-
+    // 🔓 FORMAT RESPONSE
     const domains = domainsRaw.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
       createdAt: d.createdAt,
       finalUrl: d.finalUrl,
+      isChatActive: d.isChatActive,
       user: {
         id: d.userId,
-      },
-      isChatActive: d.isChatActive
+        userName: d.userName || null
+      }
     }));
 
     return res.status(200).json({
@@ -1142,7 +1329,6 @@ exports.getHiddenDomains = async (req, res) => {
     });
   }
 };
-
 exports.getDomainsBySeller = async (req, res) => {
   try {
     const MAX_LIMIT = 500;
