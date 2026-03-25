@@ -993,40 +993,136 @@ exports.deleteBulkDomains = async (req, res) => {
 
 exports.getHiddenDomains = async (req, res) => {
   try {
-    const MAX_LIMIT = 500; // ✅ hard cap
+    const MAX_LIMIT = 500;
+
     const page = Math.max(parseInt(req.query.page) || 1, 1);
-
-    // enforce safe limit
-    let limit = parseInt(req.query.limit) || 10;
-    if (limit > MAX_LIMIT) limit = MAX_LIMIT;
-
+    let limit = Math.min(parseInt(req.query.limit) || 10, MAX_LIMIT);
     const skip = (page - 1) * limit;
-    const filter = { isHidden: false, status: "Pass" };
 
-    const query = domainSchema
-      .find(filter)
-      .select("_id domain isChatActive finalUrl userId createdAt isUserNameVisible")
-      .populate("userId", "userName")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const {
+      sortBy = "newest",
+      search = "",
+      extensions = "",
+      startsWith = "",
+      endsWith = "",
+      contains = "",
+      minLength,
+      maxLength,
+      sellerName
+    } = req.query;
 
-    const domainsEncrypted = await query.lean();
+    const filter = {
+      isHidden: false,
+      status: "Pass"
+    };
+
+    // 🔍 SEARCH
+    if (search) {
+      filter.domainSearch = { $regex: search, $options: "i" };
+    }
+
+    // 👤 SELLER FILTER
+    if (sellerName) {
+      const users = await userSchema.find({
+        userName: { $regex: `^${sellerName}`, $options: "i" }
+      }).select("_id");
+
+      filter.userId = { $in: users.map(u => u._id) };
+    }
+
+    // 🔤 EXTENSIONS (.com,.ai etc)
+    if (extensions) {
+      const exts = extensions.split(",");
+      filter.domainSearch = {
+        $regex: `(${exts.map(e => e.replace(".", "\\.")).join("|")})$`,
+        $options: "i"
+      };
+    }
+
+    let pipeline = [
+      { $match: filter },
+
+      // 👇 extract name without extension
+      {
+        $addFields: {
+          name: {
+            $arrayElemAt: [
+              { $split: ["$domainSearch", "."] },
+              0
+            ]
+          }
+        }
+      },
+
+      {
+        $addFields: {
+          nameLength: { $strLenCP: "$name" }
+        }
+      }
+    ];
+
+    // 🔡 STARTS / ENDS / CONTAINS
+    if (startsWith) {
+      pipeline.push({
+        $match: { name: { $regex: `^${startsWith}`, $options: "i" } }
+      });
+    }
+
+    if (endsWith) {
+      pipeline.push({
+        $match: { name: { $regex: `${endsWith}$`, $options: "i" } }
+      });
+    }
+
+    if (contains) {
+      pipeline.push({
+        $match: { name: { $regex: contains, $options: "i" } }
+      });
+    }
+
+    // 📏 LENGTH FILTER
+    if (minLength) {
+      pipeline.push({
+        $match: { nameLength: { $gte: Number(minLength) } }
+      });
+    }
+
+    if (maxLength) {
+      pipeline.push({
+        $match: { nameLength: { $lte: Number(maxLength) } }
+      });
+    }
+
+    // 🔃 SORT (GLOBAL, BEFORE PAGINATION)
+    const sortMap = {
+      az: { name: 1 },
+      za: { name: -1 },
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      length_asc: { nameLength: 1 },
+      length_desc: { nameLength: -1 }
+    };
+
+    pipeline.push({
+      $sort: sortMap[sortBy] || { createdAt: -1 }
+    });
+
+    // 📄 PAGINATION
+    pipeline.push({ $skip: skip }, { $limit: limit });
+
+    const domainsRaw = await domainSchema.aggregate(pipeline);
+
     const total = await domainSchema.countDocuments(filter);
 
-    const domains = domainsEncrypted.map((d) => ({
+    const domains = domainsRaw.map(d => ({
       domainId: d._id,
       domain: decryptData(d.domain),
       createdAt: d.createdAt,
+      finalUrl: d.finalUrl,
       user: {
-        id: d.userId?._id,
-        userName:
-          d.isUserNameVisible === false
-            ? "Anonymous"
-            : d.userId?.userName || "Anonymous",
+        id: d.userId,
       },
-      isChatActive: d.isChatActive,
-      finalUrl: d.finalUrl || null,
+      isChatActive: d.isChatActive
     }));
 
     return res.status(200).json({
@@ -1035,12 +1131,14 @@ exports.getHiddenDomains = async (req, res) => {
       total,
       page,
       totalPages: Math.ceil(total / limit),
-      limit, // ✅ helpful for frontend
+      limit
     });
+
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch domains",
+      message: "Failed to fetch domains"
     });
   }
 };
