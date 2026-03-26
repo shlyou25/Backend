@@ -406,53 +406,38 @@ exports.adddomain = async (req, res) => {
 
     const docs = [];
     let mismatchCount = 0;
+  for (const d of domainsToInsert) {
+  let finalUrl = null;
+  let isMismatch = false;
 
-    // Allowed domains
-    for (const d of domainsToInsert) {
+  const domainName = d.domainName.toLowerCase();
+  const domainKeyword = domainName.split(".")[0]; // inferno
 
-      let finalUrl;
-      let isMismatch = false;
+  if (d.url) {
+    const url = d.url.toLowerCase();
 
-      if (d.url) {
-        // Get final redirected URL of user-provided URL
-        const pLimit = require("p-limit");
-        const limit = pLimit(10);
-
-        await Promise.all(
-          domainsToInsert.map(d =>
-            limit(async () => {
-              return await getFinalUrl(d.domainName);
-            })
-          )
-        );
-
-        const urlHost = getHostname(finalUrl);
-        const domainHost = d.domainName.toLowerCase();
-
-        if (!urlHost || !urlHost.endsWith(domainHost)) {
-          isMismatch = true;
-        }
-        if (isMismatch) mismatchCount++;
-        console.log('====================================');
-        console.log(mismatchCount);
-        console.log('====================================');
-      } else {
-        finalUrl = await getFinalUrl(d.domainName);
-      }
-      docs.push({
-        domain: encryptData(d.domainName),
-        domainSearch: d.domainName.toLowerCase(),
-        userId,
-        status: isMismatch ? "Fail" : "Pass",
-        reason: isMismatch
-          ? "Root domain does not match provided URL"
-          : null,
-        adminCheck: false,
-        finalUrl,
-      });
+    if (!url.includes(domainKeyword)) {
+      isMismatch = true;
+      mismatchCount++;
     }
 
-    // Failed domains
+    finalUrl = d.url;
+  } else {
+    finalUrl = await getFinalUrl(d.domainName);
+  }
+
+  docs.push({
+    domain: encryptData(d.domainName),
+    domainSearch: domainName,
+    userId,
+    status: isMismatch ? "Fail" : "Pass",
+    reason: isMismatch
+      ? "URL provided doesn't match with domain name"
+      : null,
+    adminCheck: false,
+    finalUrl,
+  });
+}
     for (const d of failedList) {
       docs.push({
         domain: encryptData(d.domainName),
