@@ -1,30 +1,93 @@
 const userSchema = require('../../../models/user');
+const domainSchema=require('../../../models/domain')
 const Plan = require("../../../models/packages");
 const { packages, adminPlanSchema, editPlanSchema } = require("../../middlewares/PackagePlan");
 const { selectPlanSchema } = require("../../middlewares/PackagePlan");
 
+// exports.getplansbyuser = async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+//     const plans = await Plan.find({ userId })
+//       .select("title price per feature startDate endingDate status durationInMonths")
+//       .sort({ createdAt: -1 })
+//       .lean();
+
+//     return res.status(200).json({
+//       status: true,
+//       plans,
+//       message: "Plans fetched successfully"
+//     });
+
+//   } catch (error) {
+//     return res.status(500).json({
+//       status: false,
+//       message: "Error fetching plans",
+//       error: error.message
+//     });
+//   }
+// };
+
+
+
 exports.getplansbyuser = async (req, res) => {
   try {
     const userId = req.user.id;
-    const plans = await Plan.find({ userId })
-      .select("title price per feature startDate endingDate status durationInMonths")
+
+    // 1. Get latest active & not expired plan
+    const currentPlan = await Plan.findOne({
+      userId,
+      status: "active",
+      endingDate: { $gt: new Date() },
+    })
+      .select(
+        "title price per feature startDate endingDate durationInMonths createdAt"
+      )
       .sort({ createdAt: -1 })
       .lean();
 
+    if (!currentPlan) {
+      return res.status(200).json({
+        status: true,
+        message: "No active plan found",
+        currentPlan: null,
+      });
+    }
+
+    // 2. Count domains used
+    const domainsUsed = await domainSchema.countDocuments({ userId });
+
+    // 3. Calculate remaining domains
+    const remainingDomains = Math.max(
+      currentPlan.feature - domainsUsed,
+      0
+    );
+
     return res.status(200).json({
       status: true,
-      plans,
-      message: "Plans fetched successfully"
-    });
+      message: "Current plan fetched successfully",
 
+      currentPlan: {
+        title: currentPlan.title,
+        price: currentPlan.price,
+        per: currentPlan.per,
+        feature: currentPlan.feature, // max domains
+        startDate: currentPlan.startDate,
+        endingDate: currentPlan.endingDate,
+        createdAt: currentPlan.createdAt,
+
+        domainsUsed,
+        remainingDomains,
+      },
+    });
   } catch (error) {
     return res.status(500).json({
       status: false,
-      message: "Error fetching plans",
-      error: error.message
+      message: "Error fetching current plan",
+      error: error.message,
     });
   }
 };
+
 exports.addPlan = async (req, res) => {
   try {
     const userId = req.user.id;
