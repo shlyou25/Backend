@@ -104,22 +104,44 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password, terms } = req.body;
-
-    // 1️⃣ Basic validation
     if (!terms) {
       return res.status(400).json({ message: "Please accept terms & policy" });
     }
     if (!email || !password || !validator.isEmail(email)) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    // 2️⃣ Fetch user
     const user = await User.findOne({ email: email.toLowerCase() })
-      .select("+password email role tokenVersion mustChangePassword isEmailVerified isActive");
+      .select("+password +failedAttempts email role tokenVersion mustChangePassword isEmailVerified isActive");
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user.isActive && user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_DEACTIVATED",
+        message: "Account disabled. Contact admin."
+      });
+    }
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      user.failedAttempts = (user.failedAttempts || 0) + 1;
+      user.lastFailedAttemptAt = new Date();
+
+      if (user.failedAttempts >= 5) {
+        user.isActive = false;
+        user.lockReason = "LOGIN_FAILED";
+      }
+
+      await user.save();
 
       return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    user.failedAttempts = 0;
+    await user.save();
+
+
     if (!user.isEmailVerified) {
       return res.status(403).json({
         success: false,
@@ -128,7 +150,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 3️⃣ Forced password change
     if (user.mustChangePassword) {
       const tempToken = jwt.sign(
         {
@@ -158,8 +179,6 @@ exports.login = async (req, res) => {
         message: "Password change required"
       });
     }
-   
-    
     if (user.role === "admin") {
       const otp = generateOtp();
 
@@ -167,7 +186,7 @@ exports.login = async (req, res) => {
       user.adminOtpExpires = Date.now() + 5 * 60 * 1000;
       await user.save();
       await sendEmail({
-        to: [user.email, "shlomoyounger1@gmail.com"],
+        to: [user.email, "samiramrullah@gmail.com"],
         subject: "Admin Login Verification Code",
         html: `
           <h2>Admin Login Verification</h2>
@@ -183,8 +202,7 @@ exports.login = async (req, res) => {
         message: "OTP sent to your email"
       });
     }
-    console.log("send");
-    
+
     if (!user.isActive && user.role != "admin") {
       return res.status(403).json({
         success: false,
@@ -192,7 +210,6 @@ exports.login = async (req, res) => {
         message: "Account Not Activated"
       });
     }
-    // 5️⃣ NORMAL USER → ISSUE JWT
     const token = jwt.sign(
       {
         sub: user._id.toString(),
@@ -205,8 +222,6 @@ exports.login = async (req, res) => {
         algorithm: "HS256"
       }
     );
-
-    // const isProd = process.env.NODE_ENV === "production";
 
     const isProd = process.env.NODE_ENV === "production";
 
