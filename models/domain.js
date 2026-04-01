@@ -61,6 +61,11 @@ const domainSchema = new mongoose.Schema(
       default: false,
       index: true
     },
+    sellerName: {
+      type: String,
+      trim: true,
+      default: null
+    },
 
     promotionPriority: {
       type: Number,

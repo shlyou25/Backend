@@ -17,6 +17,15 @@ router.get("/search", domainController.serachDomain);
 router.get('/getalldomains',authenticate,isAdmin,domainController.getAllDomains);  
 router.get('/getallpromoteddomain',authenticate,isAdmin,domainController.getAllPromotedDomains);
 
+router.get("/getdomainbyuserAdmin", authenticate, isAdmin,domainController.getAdminDomainsOnly);  
+router.patch("/updateSellerNameAdmin", authenticate, isAdmin,domainController.updateSellerName); 
+
+router.patch(
+  "/bulk-update-seller",
+  authenticate,
+  isAdmin,domainController.bulkUpdateSellerName
+);
+
 router.patch("/:id/toggle-message-notification",authenticate,domainController.toggleMessageNotification);
 
 
@@ -30,6 +39,8 @@ router.get('/removepromotion/:priority',authenticate,isAdmin,domainController.re
 router.post('/changedomainstatus',authenticate,isAdmin,domainController.changeDomainStatus);
 router.delete('/deletedomain/:domainId',authenticate,isAdmin,domainController.AdmindeleteDomain);
 router.delete("/admin/domain/bulk-delete",authenticate,isAdmin, domainController.AdminBulkDeleteDomains);
+
+router.post('/adddomainadmin',authenticate,domainController.adminAddDomain);
 
 router.patch(
   "/admin/update-admin-check/:domainId",

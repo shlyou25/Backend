@@ -276,13 +276,7 @@ const { encryptData, decryptData } = require('../../middlewares/crypto');
 //   }
 // };
 
-const getHostname = (url) => {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-};
+
 
 async function getFinalUrl(domain) {
   try {
@@ -299,6 +293,141 @@ async function getFinalUrl(domain) {
     return `http://${domain}`;
   }
 }
+
+exports.adminAddDomain = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+
+    let { domains, sellerName } = req.body;
+
+    if (!domains) {
+      return res.status(400).json({
+        message: "No domains provided.",
+      });
+    }
+
+    // 🧠 Normalize domains
+    let normalizedDomains = [];
+
+    if (typeof domains === "string") {
+      normalizedDomains = domains
+        .split(/[\n,]+/)
+        .map((d) => ({
+          domainName: d.trim(),
+          url: null,
+        }))
+        .filter((d) => d.domainName);
+    } else if (Array.isArray(domains)) {
+      normalizedDomains = domains
+        .map((d) => {
+          if (typeof d === "string") {
+            return { domainName: d.trim(), url: null };
+          }
+
+          if (typeof d === "object" && d.domainName) {
+            return {
+              domainName: d.domainName.trim(),
+              url: d.url?.trim() || null,
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+    } else {
+      return res.status(400).json({
+        message: "Invalid domains format.",
+      });
+    }
+
+    if (!normalizedDomains.length) {
+      return res.status(400).json({
+        message: "No valid domains provided.",
+      });
+    }
+
+    const allowedTLDs = [".com", ".org", ".net", ".ai", ".io", ".xyz"];
+
+    const docs = [];
+    let mismatchCount = 0;
+    let failedTLD = 0;
+
+    for (const d of normalizedDomains) {
+      const domainName = d.domainName.toLowerCase();
+
+      // ❌ TLD check
+      if (!allowedTLDs.some((tld) => domainName.endsWith(tld))) {
+        failedTLD++;
+
+        docs.push({
+          domain: encryptData(domainName),
+          domainSearch: domainName,
+          userId: adminId, // ✅ ADMIN AS OWNER
+
+          sellerName: sellerName || "Admin",
+
+          status: "Fail",
+          finalUrl: d.url || null,
+        });
+
+        continue;
+      }
+
+      let finalUrl = null;
+      let isMismatch = false;
+
+      const keyword = domainName.split(".")[0];
+
+      if (d.url) {
+        if (!d.url.toLowerCase().includes(keyword)) {
+          isMismatch = true;
+          mismatchCount++;
+        }
+        finalUrl = d.url;
+      } else {
+        finalUrl = await getFinalUrl(domainName);
+      }
+
+      docs.push({
+        domain: encryptData(domainName),
+        domainSearch: domainName,
+        userId: adminId, // ✅ ADMIN AS OWNER
+
+        sellerName: sellerName || "Admin",
+
+        status: isMismatch ? "Fail" : "Pass",
+        reason: isMismatch ? "URL mismatch" : null,
+
+        finalUrl,
+      });
+    }
+
+    if (docs.length) {
+      await domainSchema.insertMany(docs);
+    }
+
+    return res.status(200).json({
+      message: `Admin Upload Complete
+Added: ${docs.filter(d => d.status === "Pass").length}
+Failed: ${docs.filter(d => d.status === "Fail").length}`,
+
+      added: docs.filter(d => d.status === "Pass").length,
+      failed: docs.filter(d => d.status === "Fail").length,
+
+      failedBreakdown: {
+        tld: failedTLD,
+        urlMismatch: mismatchCount,
+      },
+    });
+
+  } catch (error) {
+    console.error("Admin AddDomain Error:", error);
+
+    return res.status(500).json({
+      message: "Error adding domains",
+    });
+  }
+};
 
 exports.adddomain = async (req, res) => {
   try {
@@ -406,38 +535,38 @@ exports.adddomain = async (req, res) => {
 
     const docs = [];
     let mismatchCount = 0;
-  for (const d of domainsToInsert) {
-  let finalUrl = null;
-  let isMismatch = false;
+    for (const d of domainsToInsert) {
+      let finalUrl = null;
+      let isMismatch = false;
 
-  const domainName = d.domainName.toLowerCase();
-  const domainKeyword = domainName.split(".")[0]; // inferno
+      const domainName = d.domainName.toLowerCase();
+      const domainKeyword = domainName.split(".")[0]; // inferno
 
-  if (d.url) {
-    const url = d.url.toLowerCase();
+      if (d.url) {
+        const url = d.url.toLowerCase();
 
-    if (!url.includes(domainKeyword)) {
-      isMismatch = true;
-      mismatchCount++;
+        if (!url.includes(domainKeyword)) {
+          isMismatch = true;
+          mismatchCount++;
+        }
+
+        finalUrl = d.url;
+      } else {
+        finalUrl = await getFinalUrl(d.domainName);
+      }
+
+      docs.push({
+        domain: encryptData(d.domainName),
+        domainSearch: domainName,
+        userId,
+        status: isMismatch ? "Fail" : "Pass",
+        reason: isMismatch
+          ? "URL provided doesn't match with domain name"
+          : null,
+        adminCheck: false,
+        finalUrl,
+      });
     }
-
-    finalUrl = d.url;
-  } else {
-    finalUrl = await getFinalUrl(d.domainName);
-  }
-
-  docs.push({
-    domain: encryptData(d.domainName),
-    domainSearch: domainName,
-    userId,
-    status: isMismatch ? "Fail" : "Pass",
-    reason: isMismatch
-      ? "URL provided doesn't match with domain name"
-      : null,
-    adminCheck: false,
-    finalUrl,
-  });
-}
     for (const d of failedList) {
       docs.push({
         domain: encryptData(d.domainName),
@@ -512,6 +641,56 @@ exports.getdomainbyuserid = async (req, res) => {
     res.status(500).json({
       status: false,
       message: "Error retrieving domains"
+    });
+  }
+};
+exports.getAdminDomainsOnly = async (req, res) => {
+  try {
+    const adminId = req.user.id; // ✅ current logged-in admin
+
+    const domainsEncrypted = await domainSchema
+      .find({ userId: adminId }) // 🔥 ONLY ADMIN DOMAINS
+      .populate("userId", "name email userName")
+      .select(`
+        _id 
+        domain 
+        createdAt 
+        finalUrl 
+        status 
+        sellerName
+      `)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const domains = domainsEncrypted.map((d) => ({
+      domainId: d._id,
+      domain: decryptData(d.domain),
+      status: d.status,
+      createdAt: d.createdAt,
+      finalUrl: d.finalUrl,
+
+      // ✅ Always send seller
+      sellerName: d.sellerName || d.userId?.userName || "Admin",
+
+      owner: {
+        // ✅ IMPORTANT FIX
+        name: d.sellerName || d.userId?.userName || "Admin",
+        email: d.userId?.email || "-",
+      },
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: domains.length,
+      domains,
+    });
+
+  } catch (error) {
+    console.error("Admin Get Domains Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Error retrieving admin domains",
     });
   }
 };
@@ -1216,13 +1395,20 @@ exports.getHiddenDomains = async (req, res) => {
       },
 
       // 👤 CONDITIONAL USERNAME
+      // 👤 CONDITIONAL USERNAME (UPDATED)
       {
         $addFields: {
           userName: {
             $cond: [
-              { $eq: ["$isUserNameVisible", true] },
-              "$user.userName",
-              null
+              { $ne: ["$sellerName", null] }, // ✅ if admin-added
+              "$sellerName",                 // 👉 use sellerName
+              {
+                $cond: [
+                  { $eq: ["$isUserNameVisible", true] },
+                  "$user.userName",          // 👉 fallback to user
+                  null
+                ]
+              }
             ]
           }
         }
@@ -1816,7 +2002,7 @@ exports.serachDomain = async (req, res) => {
         promotionPriority: 1,
         createdAt: -1
       })
-      .select("_id domain finalUrl userId isUserNameVisible")
+      .select("_id domain finalUrl userId isUserNameVisible sellerName")
       .lean();
 
     const domains = domainsRaw.map(d => ({
@@ -1827,7 +2013,7 @@ exports.serachDomain = async (req, res) => {
         userName:
           d.isUserNameVisible === false
             ? "Anonymous"
-            : d.userId?.userName || "Anonymous"
+            : d.sellerName || d.userId?.userName || "Anonymous"
       }
     }));
     res.json({
@@ -1843,6 +2029,104 @@ exports.serachDomain = async (req, res) => {
   }
 };
 
+
+
+exports.updateSellerName = async (req, res) => {
+  try {
+    const { id, sellerName } = req.body;
+
+    if (!id || !sellerName) {
+      return res.status(400).json({
+        success: false,
+        message: "Domain ID and sellerName are required",
+      });
+    }
+
+    const updated = await domainSchema.findByIdAndUpdate(
+      id,
+      {
+        sellerName: sellerName.trim(),
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "Domain not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Seller name updated successfully",
+      domainId: updated._id,
+      sellerName: updated.sellerName,
+    });
+
+  } catch (error) {
+    console.error("Update Seller Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update seller name",
+    });
+  }
+};
+
+exports.bulkUpdateSellerName = async (req, res) => {
+  try {
+    const { ids, sellerName } = req.body;
+
+    // 🔍 Validation
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No domain IDs provided",
+      });
+    }
+
+    if (!sellerName || !sellerName.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Seller name is required",
+      });
+    }
+
+    // 🧹 Clean seller name
+    const cleanSeller = sellerName.trim();
+
+    // 🔐 OPTIONAL: Restrict to admin-owned domains
+    const adminId = req.user.id;
+
+    const result = await domainSchema.updateMany(
+      {
+        _id: { $in: ids },
+        userId: adminId // ✅ ensures only admin's domains updated
+      },
+      {
+        $set: {
+          sellerName: cleanSeller,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Seller name updated successfully",
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+
+  } catch (error) {
+    console.error("Bulk Update Seller Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update seller names",
+    });
+  }
+};
 
 
 
