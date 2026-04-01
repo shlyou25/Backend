@@ -1394,19 +1394,29 @@ exports.getHiddenDomains = async (req, res) => {
         }
       },
 
-      // 👤 CONDITIONAL USERNAME
-      // 👤 CONDITIONAL USERNAME (UPDATED)
       {
         $addFields: {
           userName: {
             $cond: [
-              { $ne: ["$sellerName", null] }, // ✅ if admin-added
-              "$sellerName",                 // 👉 use sellerName
+              {
+                $and: [
+                  { $eq: ["$isUserNameVisible", true] },
+                  { $ne: ["$user.userName", null] },
+                  { $ne: ["$user.userName", ""] }
+                ]
+              },
+              "$user.userName", // ✅ PRIORITY 1
+
               {
                 $cond: [
-                  { $eq: ["$isUserNameVisible", true] },
-                  "$user.userName",          // 👉 fallback to user
-                  null
+                  {
+                    $and: [
+                      { $ne: ["$sellerName", null] },
+                      { $ne: ["$sellerName", ""] }
+                    ]
+                  },
+                  "$sellerName", // ✅ PRIORITY 2
+                  null // ✅ FINAL FALLBACK
                 ]
               }
             ]
