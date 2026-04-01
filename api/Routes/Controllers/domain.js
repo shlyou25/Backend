@@ -1424,7 +1424,6 @@ exports.getHiddenDomains = async (req, res) => {
         }
       }
     ];
-
     // 🔡 FILTERS
     if (startsWith) {
       pipeline.push({
@@ -1515,7 +1514,6 @@ exports.getDomainsBySeller = async (req, res) => {
     const MAX_LIMIT = 500;
 
     const page = Math.max(parseInt(req.query.page) || 1, 1);
-
     let limit = parseInt(req.query.limit) || 10;
     if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
@@ -1530,13 +1528,12 @@ exports.getDomainsBySeller = async (req, res) => {
       });
     }
 
-    // ✅ Escape regex (IMPORTANT for safety)
     const escapeRegex = (str) =>
       str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const safeSearch = escapeRegex(sellerName);
 
-    // ✅ Find users (STARTS WITH match for better accuracy)
+    // 🔍 1. Find matching USERS
     const users = await userSchema
       .find({
         userName: { $regex: `^${safeSearch}`, $options: "i" }
@@ -1544,35 +1541,36 @@ exports.getDomainsBySeller = async (req, res) => {
       .select("_id userName")
       .lean();
 
-    if (!users.length) {
-      return res.status(404).json({
-        success: false,
-        message: "No users found",
-      });
-    }
-
-    // ✅ Extract userIds
     const userIds = users.map((u) => u._id);
 
-    // ✅ Create user map
     const userMap = {};
     users.forEach((u) => {
       userMap[u._id.toString()] = u.userName;
     });
 
-    // ✅ Domain filter (HIDE invisible usernames)
+    // 🔍 2. Build OR filter
     const filter = {
-      userId: { $in: userIds },
       status: "Pass",
       isHidden: false,
-      isUserNameVisible: true, // 🔥 important
+      $or: [
+        // ✅ CASE 1: sellerName match (IGNORE visibility)
+        {
+          sellerName: { $regex: `^${safeSearch}`, $options: "i" }
+        },
+
+        // ✅ CASE 2: user match BUT only visible
+        {
+          userId: { $in: userIds },
+          isUserNameVisible: true
+        }
+      ]
     };
 
     const [domainsEncrypted, total] = await Promise.all([
       domainSchema
         .find(filter)
         .select(
-          "_id domain isChatActive finalUrl createdAt userId"
+          "_id domain isChatActive finalUrl createdAt userId sellerName isUserNameVisible"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -1582,18 +1580,34 @@ exports.getDomainsBySeller = async (req, res) => {
       domainSchema.countDocuments(filter),
     ]);
 
-    // ✅ Map response
-    const domains = domainsEncrypted.map((d) => ({
-      domainId: d._id,
-      domain: decryptData(d.domain),
-      createdAt: d.createdAt,
-      user: {
-        id: d.userId,
-        userName: userMap[d.userId.toString()] || "Anonymous",
-      },
-      isChatActive: d.isChatActive,
-      finalUrl: d.finalUrl || null,
-    }));
+    // 🔥 FINAL MAPPING LOGIC
+    const domains = domainsEncrypted.map((d) => {
+      const userNameFromUser = userMap[d.userId?.toString()] || null;
+
+      let finalUserName = null;
+
+      // ✅ sellerName match takes priority if exists
+      if (d.sellerName && d.sellerName.trim() !== "") {
+        finalUserName = d.sellerName;
+      }
+
+      // ✅ otherwise fallback to userName (only visible ones already filtered)
+      else if (d.isUserNameVisible && userNameFromUser) {
+        finalUserName = userNameFromUser;
+      }
+
+      return {
+        domainId: d._id,
+        domain: decryptData(d.domain),
+        createdAt: d.createdAt,
+        user: {
+          id: d.userId,
+          userName: finalUserName,
+        },
+        isChatActive: d.isChatActive,
+        finalUrl: d.finalUrl || null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
