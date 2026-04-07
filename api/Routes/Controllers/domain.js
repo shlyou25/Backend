@@ -1400,23 +1400,25 @@ exports.getHiddenDomains = async (req, res) => {
             $cond: [
               {
                 $and: [
+                  // ❗ ADD THIS LINE (KEY FIX)
+                  { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
+
                   { $eq: ["$isUserNameVisible", true] },
                   { $ne: ["$user.userName", null] },
                   { $ne: ["$user.userName", ""] }
                 ]
               },
-              "$user.userName", // ✅ PRIORITY 1
+              "$user.userName", // ✅ PRIORITY 1 (ONLY normal users)
 
               {
                 $cond: [
                   {
                     $and: [
-                      { $ne: ["$sellerName", null] },
-                      { $ne: ["$sellerName", ""] }
+                      { $ne: [{ $ifNull: ["$sellerName", ""] }, ""] }
                     ]
                   },
-                  "$sellerName", // ✅ PRIORITY 2
-                  null // ✅ FINAL FALLBACK
+                  "$sellerName", // ✅ PRIORITY 2 (admin domains)
+                  null
                 ]
               }
             ]
