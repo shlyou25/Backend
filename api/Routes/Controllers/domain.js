@@ -399,6 +399,7 @@ exports.adminAddDomain = async (req, res) => {
         reason: isMismatch ? "URL mismatch" : null,
 
         finalUrl,
+        isChatActive:false
       });
     }
 
