@@ -22,6 +22,11 @@ const communicationSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    seen: {
+      type: Boolean,
+      default: false
+    },
+    seenAt: Date,
 
     isActive: {
       type: Boolean,
@@ -35,6 +40,7 @@ const communicationSchema = new mongoose.Schema(
       index: true
     }
   },
+
   { timestamps: true }
 );
 

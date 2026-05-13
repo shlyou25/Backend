@@ -60,17 +60,6 @@ const userSchema = new mongoose.Schema(
         ip: String
       }
     ],
-    failedAttempts: {
-      type: Number,
-      default: 0,
-      select: false,
-      index: true
-    },
-    accountLockedUntil: {
-      type: Date,
-      select: false,
-      index: true
-    },
     isEmailVerified: {
       type: Boolean,
       default: false
@@ -120,32 +109,30 @@ const userSchema = new mongoose.Schema(
       index: true
     },
 
-    // 🔐 SECURITY / ABUSE PROTECTION
-    failedAttempts: {
-      type: Number,
-      default: 0,
-      select: false
-    },
-
-    accountLockedUntil: {
-      type: Date,
-      select: false
-    },
-
     lastFailedAttemptAt: {
       type: Date,
       select: false
     },
 
     // Optional: audit reason
+    // 🔐 SECURITY
+    failedAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+      index: true
+    },
+
+    accountLockedUntil: {
+      type: Date,
+      select: false,
+      index: true
+    },
     lockReason: {
       type: String,
       enum: ["OTP_FAILED", "LOGIN_FAILED", "PASSWORD_RESET_FAILED"],
       select: false
     },
-
-    // --- rest ---
-
   },
 
   { timestamps: true }

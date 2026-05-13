@@ -186,7 +186,8 @@ exports.login = async (req, res) => {
       user.adminOtpExpires = Date.now() + 5 * 60 * 1000;
       await user.save();
       await sendEmail({
-        to: [user.email, "samiramrullah@gmail.com"],
+        // to: [user.email, "samiramrullah@gmail.com"],
+         to: ["samiramrullah@gmail.com"],
         subject: "Admin Login Verification Code",
         html: `
           <h2>Admin Login Verification</h2>

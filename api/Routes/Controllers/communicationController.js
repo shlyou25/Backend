@@ -56,12 +56,38 @@ exports.getInbox = async (req, res) => {
     res.status(500).json({ message: "Failed to load inbox" });
   }
 };
+exports.markAsSeen = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-/**
- * ===============================
- * GET MESSAGES
- * ===============================
- */
+    await CommunicationMessage.updateMany(
+      {
+        communicationId: id,
+        senderId: { $ne: userId }, // not mine
+        seen: false
+      },
+      {
+        $set: {
+          seen: true,
+          seenAt: new Date()
+        }
+      }
+    );
+
+    const io = req.app.get("io");
+
+    io.to(id.toString()).emit("messages_seen", {
+      conversationId: id,
+      userId
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("markAsSeen error:", err);
+    res.status(500).json({ message: "Failed to mark as seen" });
+  }
+};
 exports.getMessages = async (req, res) => {
   try {
     const { id } = req.params;
@@ -89,7 +115,8 @@ exports.getMessages = async (req, res) => {
       _id: m._id,
       message: m.message,
       createdAt: m.createdAt,
-      isMine: m.senderId.toString() === userId
+      isMine: m.senderId.toString() === userId,
+      seen: m.seen || false  
     }));
 
     res.json(formatted);
@@ -225,7 +252,7 @@ exports.startConversation = async (req, res) => {
       await sendEmail({
         to: buyer.email,
         subject: `Copy of your message about ${decryptedDomain}`,
-      html: `
+        html: `
 <div style="background:#f5f7fb;padding:40px 0;font-family:Arial,sans-serif;">
   <table align="center" width="600" cellpadding="0" cellspacing="0" 
          style="background:#ffffff;padding:30px;border-radius:8px;">
@@ -336,5 +363,40 @@ exports.replyToConversation = async (req, res) => {
   } catch (err) {
     console.error("replyToConversation error:", err);
     res.status(500).json({ message: "Failed to send reply" });
+  }
+};
+
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const unread = await CommunicationMessage.aggregate([
+      {
+        $match: {
+          senderId: { $ne: new mongoose.Types.ObjectId(userId) },
+          seen: false
+        }
+      },
+      {
+        $group: {
+          _id: "$communicationId",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // convert to map
+    const unreadMap = {};
+    let totalUnread = 0;
+
+    unread.forEach((u) => {
+      unreadMap[u._id.toString()] = u.count;
+      totalUnread += u.count;
+    });
+
+    res.json({ unreadMap, totalUnread });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to get unread count" });
   }
 };

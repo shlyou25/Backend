@@ -353,21 +353,21 @@ exports.adminAddDomain = async (req, res) => {
     let failedTLD = 0;
 
     for (const d of normalizedDomains) {
-      const domainName = d.domainName.toLowerCase();
+      const domainName = d.domainName;
 
-      // ❌ TLD check
       if (!allowedTLDs.some((tld) => domainName.endsWith(tld))) {
         failedTLD++;
 
         docs.push({
           domain: encryptData(domainName),
           domainSearch: domainName,
-          userId: adminId, // ✅ ADMIN AS OWNER
+          userId: adminId,
 
           sellerName: sellerName || "Admin",
 
           status: "Fail",
           finalUrl: d.url || null,
+          processingStatus: "pending",
         });
 
         continue;
@@ -387,7 +387,6 @@ exports.adminAddDomain = async (req, res) => {
       } else {
         finalUrl = await getFinalUrl(domainName);
       }
-
       docs.push({
         domain: encryptData(domainName),
         domainSearch: domainName,
@@ -397,7 +396,7 @@ exports.adminAddDomain = async (req, res) => {
 
         status: isMismatch ? "Fail" : "Pass",
         reason: isMismatch ? "URL mismatch" : null,
-
+        
         finalUrl,
         isChatActive:false
       });
@@ -565,6 +564,7 @@ exports.adddomain = async (req, res) => {
           ? "URL provided doesn't match with domain name"
           : null,
         adminCheck: false,
+        processingStatus: "pending",
         finalUrl,
       });
     }

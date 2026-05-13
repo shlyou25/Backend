@@ -66,7 +66,12 @@ const domainSchema = new mongoose.Schema(
       trim: true,
       default: null
     },
-
+    processingStatus: {
+      type: String,
+      enum: ["pending", "processing", "done"],
+      default: "pending",
+      index: true
+    },
     promotionPriority: {
       type: Number,
       sparse: true

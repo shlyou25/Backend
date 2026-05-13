@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 
 const app = require("./app");
 const connectDB = require("./config/database");
+const processDomains = require("./api/middlewares/domainProcessor");
 
 const PORT = process.env.PORT || 8080;
 
@@ -13,7 +14,6 @@ connectDB();
 /** ✅ create HTTP server */
 const server = http.createServer(app);
 
-/** ✅ attach socket.io */
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -21,10 +21,8 @@ const io = new Server(server, {
   }
 });
 
-/** ✅ VERY IMPORTANT — makes io available in controllers */
 app.set("io", io);
 
-/** ✅ socket handlers */
 io.on("connection", (socket) => {
   console.log("🔌 socket connected:", socket.id);
 
@@ -38,7 +36,11 @@ io.on("connection", (socket) => {
   });
 });
 
-/** ✅ start server */
+
+setInterval(() => {
+  processDomains();
+}, 3000); 
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on ${PORT}`);
 });
