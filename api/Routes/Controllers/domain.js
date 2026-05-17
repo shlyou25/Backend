@@ -363,7 +363,7 @@ exports.adminAddDomain = async (req, res) => {
     let failedTLD = 0;
 
     for (const d of normalizedDomains) {
-      const domainName = d.domainName.toLowerCase();
+      const domainName = d.domainName;
 
       // ✅ TLD validation
       if (!allowedTLDs.some((tld) => domainName.endsWith(tld))) {
@@ -550,7 +550,7 @@ exports.adddomain = async (req, res) => {
       let finalUrl = null;
       let isMismatch = false;
 
-      const domainName = d.domainName.toLowerCase();
+      const domainName = d.domainName;
       const domainKeyword = domainName.split(".")[0]; // inferno
 
       if (d.url) {
@@ -582,7 +582,7 @@ exports.adddomain = async (req, res) => {
     for (const d of failedList) {
       docs.push({
         domain: encryptData(d.domainName),
-        domainSearch: d.domainName.toLowerCase(),
+        domainSearch: d.domainName,
         userId,
         status: "Fail",
         adminCheck: false,
