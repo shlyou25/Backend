@@ -306,7 +306,6 @@ exports.adminAddDomain = async (req, res) => {
       });
     }
 
-    // 🧠 Normalize domains
     let normalizedDomains = [];
 
     if (typeof domains === "string") {
@@ -317,11 +316,15 @@ exports.adminAddDomain = async (req, res) => {
           url: null,
         }))
         .filter((d) => d.domainName);
+
     } else if (Array.isArray(domains)) {
       normalizedDomains = domains
         .map((d) => {
           if (typeof d === "string") {
-            return { domainName: d.trim(), url: null };
+            return {
+              domainName: d.trim(),
+              url: null,
+            };
           }
 
           if (typeof d === "object" && d.domainName) {
@@ -334,6 +337,7 @@ exports.adminAddDomain = async (req, res) => {
           return null;
         })
         .filter(Boolean);
+
     } else {
       return res.status(400).json({
         message: "Invalid domains format.",
@@ -346,15 +350,22 @@ exports.adminAddDomain = async (req, res) => {
       });
     }
 
-    const allowedTLDs = [".com", ".org", ".net", ".ai", ".io", ".xyz"];
+    const allowedTLDs = [
+      ".com",
+      ".org",
+      ".net",
+      ".ai",
+      ".io",
+      ".xyz",
+    ];
 
     const docs = [];
-    let mismatchCount = 0;
     let failedTLD = 0;
 
     for (const d of normalizedDomains) {
-      const domainName = d.domainName;
+      const domainName = d.domainName.toLowerCase();
 
+      // ✅ TLD validation
       if (!allowedTLDs.some((tld) => domainName.endsWith(tld))) {
         failedTLD++;
 
@@ -366,57 +377,57 @@ exports.adminAddDomain = async (req, res) => {
           sellerName: sellerName || "Admin",
 
           status: "Fail",
+          reason: "Invalid TLD",
+
           finalUrl: d.url || null,
           processingStatus: "pending",
+          isChatActive: false,
         });
 
         continue;
       }
 
-      let finalUrl = null;
-      let isMismatch = false;
+      // ✅ Use provided URL OR fetch automatically
+      let finalUrl = d.url?.trim() || null;
 
-      const keyword = domainName.split(".")[0];
-
-      if (d.url) {
-        if (!d.url.toLowerCase().includes(keyword)) {
-          isMismatch = true;
-          mismatchCount++;
-        }
-        finalUrl = d.url;
-      } else {
+      if (!finalUrl) {
         finalUrl = await getFinalUrl(domainName);
       }
+
       docs.push({
         domain: encryptData(domainName),
         domainSearch: domainName,
-        userId: adminId, // ✅ ADMIN AS OWNER
+        userId: adminId,
 
         sellerName: sellerName || "Admin",
 
-        status: isMismatch ? "Fail" : "Pass",
-        reason: isMismatch ? "URL mismatch" : null,
-        
+        status: "Pass",
+        reason: null,
+
         finalUrl,
-        isChatActive:false
+        processingStatus: "pending",
+        isChatActive: false,
       });
     }
 
+    // ✅ Insert all docs
     if (docs.length) {
       await domainSchema.insertMany(docs);
     }
 
+    const added = docs.filter((d) => d.status === "Pass").length;
+    const failed = docs.filter((d) => d.status === "Fail").length;
+
     return res.status(200).json({
       message: `Admin Upload Complete
-Added: ${docs.filter(d => d.status === "Pass").length}
-Failed: ${docs.filter(d => d.status === "Fail").length}`,
+Added: ${added}
+Failed: ${failed}`,
 
-      added: docs.filter(d => d.status === "Pass").length,
-      failed: docs.filter(d => d.status === "Fail").length,
+      added,
+      failed,
 
       failedBreakdown: {
         tld: failedTLD,
-        urlMismatch: mismatchCount,
       },
     });
 
