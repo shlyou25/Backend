@@ -29,15 +29,25 @@ const communicationMessageSchema = new mongoose.Schema(
       trim: true
     },
 
-    isRead: {
+    seen: {
       type: Boolean,
       default: false,
       index: true
-    }
+    },
+
+    seenAt: Date,
   },
   { timestamps: true }
 );
+communicationMessageSchema.index({
+  communicationId: 1,
+  createdAt: 1,
+});
 
+communicationMessageSchema.index({
+  communicationId: 1,
+  seen: 1,
+});
 module.exports =
   mongoose.models.CommunicationMessage ||
   mongoose.model("CommunicationMessage", communicationMessageSchema);
