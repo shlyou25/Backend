@@ -1344,11 +1344,6 @@ exports.getHiddenDomains = async (req, res) => {
       status: "Pass"
     };
 
-    // 🔍 SEARCH
-    if (search) {
-      filter.domainSearch = { $regex: search, $options: "i" };
-    }
-
     // 👤 SELLER FILTER
     if (sellerName) {
       const users = await userSchema.find({
@@ -1368,76 +1363,96 @@ exports.getHiddenDomains = async (req, res) => {
     }
 
     // 🔹 PIPELINE START
-    let pipeline = [
-      { $match: filter },
+    // let pipeline = [
+    //   { $match: filter },
 
-      // 🔗 JOIN USER (OPTIMIZED)
-      {
-        $lookup: {
-          from: "users",
-          let: { uid: "$userId" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$_id", "$$uid"] } } },
-            { $project: { userName: 1 } }
-          ],
-          as: "user"
-        }
-      },
-      {
-        $unwind: {
-          path: "$user",
-          preserveNullAndEmptyArrays: true
-        }
-      },
+    //   // 🔗 JOIN USER (OPTIMIZED)
+    //   {
+    //     $lookup: {
+    //       from: "users",
+    //       let: { uid: "$userId" },
+    //       pipeline: [
+    //         { $match: { $expr: { $eq: ["$_id", "$$uid"] } } },
+    //         { $project: { userName: 1 } }
+    //       ],
+    //       as: "user"
+    //     }
+    //   },
+    //   {
+    //     $unwind: {
+    //       path: "$user",
+    //       preserveNullAndEmptyArrays: true
+    //     }
+    //   },
 
-      // ✂️ DOMAIN NAME WITHOUT EXTENSION
-      {
-        $addFields: {
-          name: {
-            $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
-          }
-        }
-      },
+    //   // ✂️ DOMAIN NAME WITHOUT EXTENSION
+    //   {
+    //     $addFields: {
+    //       name: {
+    //         $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
+    //       }
+    //     }
+    //   },
 
-      // 📏 LENGTH
-      {
-        $addFields: {
-          nameLength: { $strLenCP: "$name" }
-        }
-      },
+    //   // 📏 LENGTH
+    //   {
+    //     $addFields: {
+    //       nameLength: { $strLenCP: "$name" }
+    //     }
+    //   },
 
-      {
-        $addFields: {
-          userName: {
-            $cond: [
-              {
-                $and: [
-                  // ❗ ADD THIS LINE (KEY FIX)
-                  { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
+    //   {
+    //     $addFields: {
+    //       userName: {
+    //         $cond: [
+    //           {
+    //             $and: [
+    //               // ❗ ADD THIS LINE (KEY FIX)
+    //               { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
 
-                  { $eq: ["$isUserNameVisible", true] },
-                  { $ne: ["$user.userName", null] },
-                  { $ne: ["$user.userName", ""] }
-                ]
-              },
-              "$user.userName", // ✅ PRIORITY 1 (ONLY normal users)
+    //               { $eq: ["$isUserNameVisible", true] },
+    //               { $ne: ["$user.userName", null] },
+    //               { $ne: ["$user.userName", ""] }
+    //             ]
+    //           },
+    //           "$user.userName", // ✅ PRIORITY 1 (ONLY normal users)
 
-              {
-                $cond: [
-                  {
-                    $and: [
-                      { $ne: [{ $ifNull: ["$sellerName", ""] }, ""] }
-                    ]
-                  },
-                  "$sellerName", // ✅ PRIORITY 2 (admin domains)
-                  null
-                ]
-              }
-            ]
-          }
-        }
+    //           {
+    //             $cond: [
+    //               {
+    //                 $and: [
+    //                   { $ne: [{ $ifNull: ["$sellerName", ""] }, ""] }
+    //                 ]
+    //               },
+    //               "$sellerName", // ✅ PRIORITY 2 (admin domains)
+    //               null
+    //             ]
+    //           }
+    //         ]
+    //       }
+    //     }
+    //   }
+    // ];
+    // 🔹 PIPELINE START
+let pipeline = [
+  { $match: filter },
+
+  // ✂️ DOMAIN NAME WITHOUT EXTENSION
+  {
+    $addFields: {
+      name: {
+        $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
       }
-    ];
+    }
+  },
+
+  // 📏 LENGTH
+  {
+    $addFields: {
+      nameLength: { $strLenCP: "$name" }
+    }
+  }
+];
     // 🔡 FILTERS
     if (startsWith) {
       pipeline.push({
@@ -1468,7 +1483,60 @@ exports.getHiddenDomains = async (req, res) => {
         $match: { nameLength: { $lte: Number(maxLength) } }
       });
     }
-
+// 🔗 JOIN USER AFTER FILTERING
+pipeline.push(
+  {
+    $lookup: {
+      from: "users",
+      let: { uid: "$userId" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$_id", "$$uid"] }
+          }
+        },
+        {
+          $project: {
+            userName: 1
+          }
+        }
+      ],
+      as: "user"
+    }
+  },
+  {
+    $unwind: {
+      path: "$user",
+      preserveNullAndEmptyArrays: true
+    }
+  },
+  {
+    $addFields: {
+      userName: {
+        $cond: [
+          {
+            $and: [
+              { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
+              { $eq: ["$isUserNameVisible", true] },
+              { $ne: ["$user.userName", null] },
+              { $ne: ["$user.userName", ""] }
+            ]
+          },
+          "$user.userName",
+          {
+            $cond: [
+              {
+                $ne: [{ $ifNull: ["$sellerName", ""] }, ""]
+              },
+              "$sellerName",
+              null
+            ]
+          }
+        ]
+      }
+    }
+  }
+);
     // 🔃 SORT
     const sortMap = {
       az: { name: 1 },
@@ -1484,14 +1552,35 @@ exports.getHiddenDomains = async (req, res) => {
     });
 
     // 🧮 TOTAL COUNT (CORRECT WAY)
-    const totalPipeline = [...pipeline, { $count: "total" }];
-    const totalResult = await domainSchema.aggregate(totalPipeline);
-    const total = totalResult[0]?.total || 0;
+    // const totalPipeline = [...pipeline, { $count: "total" }];
+    // const totalResult = await domainSchema.aggregate(totalPipeline);
+    // const total = totalResult[0]?.total || 0;
 
-    // 📄 PAGINATION
-    pipeline.push({ $skip: skip }, { $limit: limit });
+    // // 📄 PAGINATION
+    // pipeline.push({ $skip: skip }, { $limit: limit });
 
-    const domainsRaw = await domainSchema.aggregate(pipeline);
+    // const domainsRaw = await domainSchema.aggregate(pipeline);
+    const result = await domainSchema.aggregate([
+      ...pipeline,
+
+      {
+        $facet: {
+          domains: [
+            { $skip: skip },
+            { $limit: limit }
+          ],
+
+          totalCount: [
+            { $count: "count" }
+          ]
+        }
+      }
+    ]);
+
+    const domainsRaw = result[0]?.domains || [];
+
+    const total =
+      result[0]?.totalCount?.[0]?.count || 0;
 
     // 🔓 FORMAT RESPONSE
     const domains = domainsRaw.map(d => ({
@@ -2017,9 +2106,13 @@ exports.serachDomain = async (req, res) => {
     };
 
     if (search) {
+      const escapedSearch = search.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
       query.domainSearch = {
-        $exists: true,
-        $regex: search,
+        $regex: `^${escapedSearch}`,
         $options: "i"
       };
     }
