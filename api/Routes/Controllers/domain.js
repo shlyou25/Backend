@@ -1337,6 +1337,8 @@ exports.getHiddenDomains = async (req, res) => {
       maxLength,
       sellerName
     } = req.query;
+    const escapeRegex = (str = "") =>
+      str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     // 🔹 BASE FILTER
     const filter = {
@@ -1347,7 +1349,10 @@ exports.getHiddenDomains = async (req, res) => {
     // 👤 SELLER FILTER
     if (sellerName) {
       const users = await userSchema.find({
-        userName: { $regex: `^${sellerName}`, $options: "i" }
+        userName: {
+          $regex: `^${escapeRegex(sellerName)}`,
+          $options: "i"
+        }
       }).select("_id");
 
       filter.userId = { $in: users.map(u => u._id) };
@@ -1434,43 +1439,58 @@ exports.getHiddenDomains = async (req, res) => {
     //   }
     // ];
     // 🔹 PIPELINE START
-let pipeline = [
-  { $match: filter },
+    let pipeline = [
+      { $match: filter },
 
-  // ✂️ DOMAIN NAME WITHOUT EXTENSION
-  {
-    $addFields: {
+      // ✂️ DOMAIN NAME WITHOUT EXTENSION
+      {
+        $addFields: {
+          name: {
+            $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
+          }
+        }
+      },
+
+      // 📏 LENGTH
+      {
+        $addFields: {
+          nameLength: { $strLenCP: "$name" }
+        }
+      }
+    ];
+    // 🔡 FILTERS
+   if (startsWith) {
+  pipeline.push({
+    $match: {
       name: {
-        $arrayElemAt: [{ $split: ["$domainSearch", "."] }, 0]
+        $regex: `^${escapeRegex(startsWith)}`,
+        $options: "i"
       }
     }
-  },
-
-  // 📏 LENGTH
-  {
-    $addFields: {
-      nameLength: { $strLenCP: "$name" }
-    }
-  }
-];
-    // 🔡 FILTERS
-    if (startsWith) {
-      pipeline.push({
-        $match: { name: { $regex: `^${startsWith}`, $options: "i" } }
-      });
-    }
+  });
+}
 
     if (endsWith) {
-      pipeline.push({
-        $match: { name: { $regex: `${endsWith}$`, $options: "i" } }
-      });
+  pipeline.push({
+    $match: {
+      name: {
+        $regex: `${escapeRegex(endsWith)}$`,
+        $options: "i"
+      }
     }
+  });
+}
 
-    if (contains) {
-      pipeline.push({
-        $match: { name: { $regex: contains, $options: "i" } }
-      });
+   if (contains) {
+  pipeline.push({
+    $match: {
+      name: {
+        $regex: escapeRegex(contains),
+        $options: "i"
+      }
     }
+  });
+}
 
     if (minLength) {
       pipeline.push({
@@ -1483,60 +1503,60 @@ let pipeline = [
         $match: { nameLength: { $lte: Number(maxLength) } }
       });
     }
-// 🔗 JOIN USER AFTER FILTERING
-pipeline.push(
-  {
-    $lookup: {
-      from: "users",
-      let: { uid: "$userId" },
-      pipeline: [
-        {
-          $match: {
-            $expr: { $eq: ["$_id", "$$uid"] }
-          }
-        },
-        {
-          $project: {
-            userName: 1
-          }
+    // 🔗 JOIN USER AFTER FILTERING
+    pipeline.push(
+      {
+        $lookup: {
+          from: "users",
+          let: { uid: "$userId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", "$$uid"] }
+              }
+            },
+            {
+              $project: {
+                userName: 1
+              }
+            }
+          ],
+          as: "user"
         }
-      ],
-      as: "user"
-    }
-  },
-  {
-    $unwind: {
-      path: "$user",
-      preserveNullAndEmptyArrays: true
-    }
-  },
-  {
-    $addFields: {
-      userName: {
-        $cond: [
-          {
-            $and: [
-              { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
-              { $eq: ["$isUserNameVisible", true] },
-              { $ne: ["$user.userName", null] },
-              { $ne: ["$user.userName", ""] }
-            ]
-          },
-          "$user.userName",
-          {
+      },
+      {
+        $unwind: {
+          path: "$user",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $addFields: {
+          userName: {
             $cond: [
               {
-                $ne: [{ $ifNull: ["$sellerName", ""] }, ""]
+                $and: [
+                  { $eq: [{ $ifNull: ["$sellerName", ""] }, ""] },
+                  { $eq: ["$isUserNameVisible", true] },
+                  { $ne: ["$user.userName", null] },
+                  { $ne: ["$user.userName", ""] }
+                ]
               },
-              "$sellerName",
-              null
+              "$user.userName",
+              {
+                $cond: [
+                  {
+                    $ne: [{ $ifNull: ["$sellerName", ""] }, ""]
+                  },
+                  "$sellerName",
+                  null
+                ]
+              }
             ]
           }
-        ]
+        }
       }
-    }
-  }
-);
+    );
     // 🔃 SORT
     const sortMap = {
       az: { name: 1 },
